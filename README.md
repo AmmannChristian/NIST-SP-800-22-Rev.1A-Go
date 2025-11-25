@@ -296,14 +296,15 @@ The service uses zerolog for high-performance structured logging with zero alloc
 
 ## Attribution and License
 
-This implementation is based on the NIST Special Publication 800-22 Revision 1a (April 2010): "A Statistical Test Suite for Random and Pseudorandom Number Generators for Cryptographic Applications".
+This project is licensed under the MIT License. See the LICENSE file for details.
 
-This project implements the algorithms described in NIST SP 800-22 in pure Go for improved portability and maintainability. All test implementations have been validated to produce numerically identical results to the original C reference implementation.
+This implementation is based on the algorithms described in NIST Special Publication 800-22 Revision 1a (April 2010): "A Statistical Test Suite for Random and Pseudorandom Number Generators for Cryptographic Applications". The original NIST specification is a public domain work of the United States Government.
 
-Test datasets from the original NIST Statistical Test Suite are included in the `
-a/` directory for validation purposes.
+This project reimplements the NIST test suite algorithms in pure Go. All test implementations have been validated to produce numerically identical results to the original NIST C reference implementation.
 
-**Important**: This service is provided for research and validation purposes. For cryptographic applications requiring FIPS compliance, consult the original NIST documentation and your security requirements.
+Test datasets from the original NIST Statistical Test Suite are included in the testdata directory for validation and testing purposes.
+
+Note: While this implementation has been validated against the NIST reference implementation, users are responsible for determining whether it meets their specific requirements. For applications requiring FIPS compliance or other regulatory certifications, appropriate validation and certification procedures must be followed.
 
 Reference: [NIST SP 800-22 Rev. 1a](https://csrc.nist.gov/publications/detail/sp/800-22/rev-1a/final)
 
