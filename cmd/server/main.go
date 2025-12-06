@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -137,9 +138,15 @@ func startMetricsServer(ln net.Listener) *http.Server {
 	mux.Handle("/metrics", promhttp.Handler())
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte("OK")); err != nil {
+		resp := map[string]string{
+			"status":  "healthy",
+			"version": service.Version,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			log.Error().Err(err).Msg("failed to write health response")
+			http.Error(w, "failed to encode health response", http.StatusInternalServerError)
 		}
 	})
 
