@@ -1,0 +1,112 @@
+name: Go Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+env:
+  BINARY_NAME: nist-sp800-22-rev1a
+  GOCACHE: /tmp/go-build
+  GOMODCACHE: /tmp/go-mod
+  GO_CACHE_VERSION: v1
+
+jobs:
+  build-and-release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        id: setup-go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Cache Go build and module files
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.GOCACHE }}
+            ${{ env.GOMODCACHE }}
+          key: go-${{ env.GO_CACHE_VERSION }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            go-${{ env.GO_CACHE_VERSION }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-go.outputs.go-version }}-
+
+      - name: Install protoc
+        run: |
+          PROTOC_VERSION="28.3"
+          wget -q "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          unzip -q protoc-${PROTOC_VERSION}-linux-x86_64.zip -d "$HOME/protoc"
+          echo "$HOME/protoc/bin" >> "$GITHUB_PATH"
+
+      - name: Install protoc plugins
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.0
+
+      - name: Build Go binaries
+        run: |
+          make build
+          make build-arm64
+
+      - name: Prepare release artifacts
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          cp "build/${BINARY_NAME}" "dist/${BINARY_NAME}_${VERSION}_linux_amd64"
+          cp "build/${BINARY_NAME}-arm64" "dist/${BINARY_NAME}_${VERSION}_linux_arm64"
+          (cd dist && sha256sum * > checksums.txt)
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*
+          generate_release_notes: true
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist
+
+  docker_publish:
+    name: Build & Publish Docker image
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        env:
+          REGISTRY: ghcr.io
+          IMAGE_NAME: ${{ github.repository_owner }}/nist-sp800-22-rev1a
+        run: |
+          set -euo pipefail
+          OWNER_IMAGE=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="${REGISTRY}/${OWNER_IMAGE}"
+          TAG="${GITHUB_REF_NAME}"
+          echo "Building ${IMAGE}:{sha,latest,${TAG}}"
+          docker build -t "${IMAGE}:${GITHUB_SHA}" -t "${IMAGE}:latest" -t "${IMAGE}:${TAG}" .
+          docker push "${IMAGE}:${GITHUB_SHA}"
+          docker push "${IMAGE}:latest"
+          docker push "${IMAGE}:${TAG}"
