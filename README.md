@@ -307,6 +307,13 @@ Example log entry:
 
 The service uses zerolog for high-performance structured logging with zero allocations. Log output includes request IDs, method names, durations, and error details for comprehensive observability.
 
+## Documentation
+
+Detailed architectural and API documentation is available in the `docs/` directory:
+
+- [Architecture Overview](docs/architecture.md) - System design, component responsibilities, request processing pipeline, security model, observability, validation strategy, and CI/CD pipeline
+- [API Reference](docs/api-reference.md) - Complete gRPC service specification, message schemas, HTTP endpoints, Prometheus metrics reference, and authentication details
+
 ## Attribution and License
 
 This project is licensed under the MIT License. See the LICENSE file for details.
