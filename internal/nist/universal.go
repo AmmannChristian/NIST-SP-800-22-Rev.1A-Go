@@ -42,7 +42,9 @@ func UniversalStatisticalTest(bitstream []byte) (float64, bool) {
 		return 0, false
 	}
 
+	// Tabulated expected values of the test statistic, indexed by block length L (valid for L=6..16).
 	expected := [...]float64{0, 0, 0, 0, 0, 0, 5.2177052, 6.1962507, 7.1836656, 8.1764248, 9.1723243, 10.170032, 11.168765, 12.16807, 13.167693, 14.167488, 15.167379}
+	// Tabulated variance values of the test statistic, indexed by block length L (valid for L=6..16).
 	variance := [...]float64{0, 0, 0, 0, 0, 0, 2.954, 3.125, 3.238, 3.311, 3.356, 3.384, 3.401, 3.41, 3.416, 3.419, 3.421}
 
 	T := make([]int, 1<<L)

@@ -18,6 +18,10 @@ func CumulativeSumsTest(bitstream []byte) (float64, bool) {
 	return pValue, pValue >= Alpha
 }
 
+// cumulativeSums computes the p-value for a single pass (forward or reverse) of
+// the Cumulative Sums test. It constructs a partial-sum random walk from the
+// mapped bit sequence, determines the maximum absolute excursion, and evaluates
+// the corresponding p-value via the normal distribution.
 func cumulativeSums(bits []uint8, reverse bool) float64 {
 	n := len(bits)
 	var sup, inf, sum float64

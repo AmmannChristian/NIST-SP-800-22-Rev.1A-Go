@@ -50,6 +50,9 @@ func BinaryMatrixRankTest(bitstream []byte) (float64, bool) {
 	return pValue, pValue >= Alpha
 }
 
+// binaryRankProbability computes the theoretical probability that a random
+// 32x32 binary matrix has rank exactly r, using the product formula over
+// GF(2) rank distributions.
 func binaryRankProbability(r int) float64 {
 	product := 1.0
 	for i := 0; i <= r-1; i++ {
@@ -60,6 +63,8 @@ func binaryRankProbability(r int) float64 {
 	return math.Pow(2, float64(r*(32+32-r)-32*32)) * product
 }
 
+// computeRank determines the rank of a binary matrix over GF(2) using
+// forward and backward Gaussian elimination with row swapping.
 func computeRank(matrix [][]uint8) int {
 	M := len(matrix)
 	Q := len(matrix[0])
@@ -101,6 +106,9 @@ func computeRank(matrix [][]uint8) int {
 	return rank
 }
 
+// performRowOps applies row reduction over GF(2) using pivot row i. When
+// forward is true, it eliminates entries below the pivot; otherwise it
+// eliminates entries above.
 func performRowOps(matrix [][]uint8, i int, forward bool) {
 	M := len(matrix)
 	Q := len(matrix[0])
@@ -123,6 +131,9 @@ func performRowOps(matrix [][]uint8, i int, forward bool) {
 	}
 }
 
+// findUnitAndSwap searches for a row with a 1 in column i and swaps it with
+// row i to establish a pivot. It searches downward when forward is true and
+// upward otherwise. It returns true if a suitable row was found and swapped.
 func findUnitAndSwap(matrix [][]uint8, i int, forward bool) bool {
 	M := len(matrix)
 

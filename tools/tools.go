@@ -1,5 +1,8 @@
 //go:build tools
 
+// Package tools declares development-time tool dependencies that are tracked by
+// go.mod but excluded from production builds via the "tools" build tag. This
+// follows the canonical Go pattern for pinning tool versions.
 package tools
 
 import (

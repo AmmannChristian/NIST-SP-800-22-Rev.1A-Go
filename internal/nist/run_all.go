@@ -4,13 +4,19 @@ import (
 	"fmt"
 )
 
-// TestResult represents the outcome of a single NIST test.
+// TestResult represents the outcome of a single NIST SP 800-22 statistical test.
 type TestResult struct {
-	Name       string
-	PValue     float64
-	Passed     bool
+	// Name is the snake_case identifier of the test (e.g. "frequency_monobit").
+	Name string
+	// PValue is the computed p-value; values below Alpha indicate non-randomness.
+	PValue float64
+	// Passed indicates whether the p-value meets or exceeds the Alpha threshold.
+	Passed bool
+	// Proportion is 1.0 if the test passed, 0.0 otherwise (single-sequence mode).
 	Proportion float64
-	Warning    string
+	// Warning contains a diagnostic message when the test could not run normally,
+	// such as insufficient input bits. It is empty when no issues occurred.
+	Warning string
 }
 
 const (
@@ -20,7 +26,10 @@ const (
 	MaxBits = 10000000
 )
 
-// RunAllTests executes the full NIST SP 800-22 battery in pure Go.
+// RunAllTests executes all 15 NIST SP 800-22 Rev 1a statistical tests against
+// the provided bitstream and returns one TestResult per test. The bitstream
+// length must be between MinBits and MaxBits (in units of 8 bits). An error is
+// returned if the bitstream length is outside these bounds.
 func RunAllTests(bitstream []byte) ([]TestResult, error) {
 	numBits := len(bitstream) * 8
 	if numBits < MinBits {

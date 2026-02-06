@@ -1,3 +1,5 @@
+// Package middleware provides gRPC server interceptors for the NIST SP 800-22
+// service, including request-ID generation for log correlation.
 package middleware
 
 import (
@@ -8,11 +10,17 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+// contextKey is an unexported type used as a key for context.WithValue to
+// prevent collisions with keys defined in other packages.
 type contextKey string
 
+// RequestIDKey is the context key under which the request ID is stored.
 const RequestIDKey contextKey = "request_id"
 
-// UnaryRequestIDInterceptor adds a unique request ID to each gRPC request
+// UnaryRequestIDInterceptor returns a gRPC unary server interceptor that
+// generates a UUID v4 request ID for each incoming call. The ID is stored in the
+// context for internal use and propagated to the client via the "x-request-id"
+// response header metadata.
 func UnaryRequestIDInterceptor() grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
@@ -37,7 +45,8 @@ func UnaryRequestIDInterceptor() grpc.UnaryServerInterceptor {
 	}
 }
 
-// GetRequestID retrieves the request ID from the context
+// GetRequestID extracts the request ID previously set by UnaryRequestIDInterceptor.
+// It returns an empty string if no request ID is present in the context.
 func GetRequestID(ctx context.Context) string {
 	if id, ok := ctx.Value(RequestIDKey).(string); ok {
 		return id

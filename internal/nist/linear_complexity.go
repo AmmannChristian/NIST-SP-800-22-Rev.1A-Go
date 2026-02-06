@@ -22,6 +22,10 @@ func LinearComplexityTest(bitstream []byte, M int) (float64, bool) {
 	nu := make([]float64, K+1)
 
 	for ii := 0; ii < N; ii++ {
+		// Berlekamp-Massey algorithm: computes the linear complexity L of the
+		// current M-bit block. C is the current connection polynomial, B is the
+		// previous connection polynomial before the last length change, and T is
+		// a temporary copy used during updates.
 		C := make([]uint8, M)
 		B := make([]uint8, M)
 		T := make([]uint8, M)

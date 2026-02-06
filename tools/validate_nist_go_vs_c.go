@@ -1,3 +1,8 @@
+// Command validate_nist_go_vs_c is a validation tool that compares p-values
+// produced by the pure-Go NIST SP 800-22 implementation against reference
+// p-values from the NIST C reference implementation. It reads a binary or
+// ASCII-encoded bitstream, runs each test, and reports per-test absolute
+// differences against a configurable tolerance.
 package main
 
 import (
@@ -14,6 +19,9 @@ import (
 	"github.com/AmmannChristian/nist-sp800-22-rev1a/internal/nist"
 )
 
+// testResult holds the comparison outcome for a single statistical test,
+// including reference and Go p-values, their absolute differences, and
+// whether the comparison passed the tolerance threshold.
 type testResult struct {
 	Name     string    `json:"name"`
 	Ref      []float64 `json:"ref"`
@@ -185,6 +193,8 @@ func main() {
 	}
 }
 
+// single adapts a function that returns a single p-value into the multi-value
+// signature expected by the test table, discarding the pass/fail boolean.
 func single(f func([]byte) (float64, bool)) func([]byte) ([]float64, error) {
 	return func(b []byte) ([]float64, error) {
 		p, _ := f(b)

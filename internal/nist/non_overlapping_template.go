@@ -81,6 +81,8 @@ func NonOverlappingTemplateTest(bitstream []byte, m int) (float64, bool) {
 	return minP, minP >= Alpha
 }
 
+// logGamma returns the natural logarithm of the Gamma function, discarding
+// the sign indicator returned by math.Lgamma.
 func logGamma(x float64) float64 {
 	v, _ := math.Lgamma(x)
 	return v

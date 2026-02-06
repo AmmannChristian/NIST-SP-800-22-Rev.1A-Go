@@ -1,4 +1,7 @@
-// Package service implements the gRPC Sp80022TestService (NIST SP 800-22 Rev 1a)
+// Package service implements the gRPC Sp80022TestService for NIST SP 800-22
+// Rev 1a. It validates incoming bitstream requests, orchestrates all 15
+// statistical tests, records Prometheus metrics, and builds the response
+// including pass rates and p-value uniformity analysis.
 package service
 
 import (
@@ -21,14 +24,16 @@ import (
 var runAllTests = nist.RunAllTests
 
 const (
-	// Version of the service (2.0.0 for breaking API change)
+	// Version is the semantic version of the NIST SP 800-22 test service.
 	Version = "2.0.0"
 
-	// Alpha significance level from NIST (p-value threshold)
+	// Alpha is the significance level (0.01) used as the p-value threshold for
+	// pass/fail decisions, as specified by NIST SP 800-22 Rev 1a.
 	Alpha = 0.01
 )
 
-// Server implements the Sp80022TestService
+// Server implements the Sp80022TestService gRPC interface. It is safe for
+// concurrent use because it holds no mutable state.
 type Server struct {
 	pb.UnimplementedSp80022TestServiceServer
 }
@@ -38,7 +43,10 @@ func NewServer() *Server {
 	return &Server{}
 }
 
-// RunTestSuite implements the RunTestSuite RPC
+// RunTestSuite executes all 15 NIST SP 800-22 Rev 1a statistical tests on the
+// bitstream provided in the request. It validates the input size, runs the test
+// suite, computes per-test and aggregate metrics, and returns the results along
+// with a chi-squared p-value uniformity assessment.
 func (s *Server) RunTestSuite(ctx context.Context, req *pb.Sp80022TestRequest) (*pb.Sp80022TestResponse, error) {
 	startTime := time.Now()
 
@@ -174,7 +182,8 @@ func (s *Server) RunTestSuite(ctx context.Context, req *pb.Sp80022TestRequest) (
 	return response, nil
 }
 
-// validateRequest validates the test request
+// validateRequest checks that the bitstream is non-empty and that its bit count
+// falls within the bounds required by the NIST test suite (MinBits to MaxBits).
 func (s *Server) validateRequest(req *pb.Sp80022TestRequest) error {
 	if len(req.Bitstream) == 0 {
 		return fmt.Errorf("bitstream cannot be empty")
@@ -197,8 +206,10 @@ func (s *Server) validateRequest(req *pb.Sp80022TestRequest) error {
 	return nil
 }
 
-// calculatePValueUniformity performs a chi-squared test on p-value distribution
-// NIST expects p-values to be uniformly distributed in [0, 1]
+// calculatePValueUniformity performs a chi-squared goodness-of-fit test to assess
+// whether the observed p-values are uniformly distributed over [0, 1], as
+// required by NIST SP 800-22. It bins the p-values into 10 equal-width intervals
+// and returns the p-value of the chi-squared statistic with 9 degrees of freedom.
 func calculatePValueUniformity(pValues []float64) float64 {
 	if len(pValues) == 0 {
 		return 0.0
@@ -230,8 +241,8 @@ func calculatePValueUniformity(pValues []float64) float64 {
 		chi2 += (diff * diff) / expectedCount
 	}
 
-	// Convert chi2 to p-value using incomplete gamma function
-	// For now, return the raw chi2 statistic
+	// Convert chi-squared statistic to a p-value via the regularised upper
+	// incomplete gamma function (survival function of the chi-squared distribution).
 	df := float64(numBins - 1)
 	pValue := mathext.GammaIncRegComp(df/2.0, chi2/2.0)
 

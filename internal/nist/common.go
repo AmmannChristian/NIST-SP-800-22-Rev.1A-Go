@@ -27,7 +27,10 @@ func normal(x float64) float64 {
 	return 0.5 * math.Erfc(-x/math.Sqrt2)
 }
 
-// psi2 computes the psi_m statistic used by the Serial and Approximate Entropy tests.
+// psi2 computes the psi-squared statistic for block length m, as used by the
+// Serial and Approximate Entropy tests. It counts the frequency of each m-bit
+// pattern in the circular bit sequence using a binary trie indexed by pattern
+// value, then returns the normalized sum of squared counts.
 func psi2(bits []uint8, m int) float64 {
 	if m <= 0 {
 		return 0

@@ -1,3 +1,6 @@
+// Package metrics defines and registers Prometheus metrics for the NIST SP 800-22
+// test service. All collectors are auto-registered via promauto and are safe for
+// concurrent use.
 package metrics
 
 import (
@@ -6,7 +9,8 @@ import (
 )
 
 var (
-	// TestsTotal counts the total number of individual tests run
+	// TestsTotal counts individual statistical test executions, labelled by test
+	// name and outcome ("pass" or "fail").
 	TestsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "nist_tests_total",
@@ -15,7 +19,8 @@ var (
 		[]string{"test", "status"},
 	)
 
-	// TestDuration tracks the duration of individual tests
+	// TestDuration records the wall-clock duration of individual statistical tests
+	// in seconds.
 	TestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "nist_test_duration_seconds",
@@ -25,7 +30,8 @@ var (
 		[]string{"test"},
 	)
 
-	// OverallDuration tracks the duration of the entire test suite
+	// OverallDuration records the wall-clock duration of the entire 15-test suite
+	// in seconds.
 	OverallDuration = promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "nist_overall_duration_seconds",
@@ -34,7 +40,8 @@ var (
 		},
 	)
 
-	// LastOverallPassRate stores the last overall pass rate
+	// LastOverallPassRate tracks the most recently computed overall pass rate as a
+	// value between 0.0 and 1.0.
 	LastOverallPassRate = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "nist_last_overall_pass_rate",
@@ -42,7 +49,7 @@ var (
 		},
 	)
 
-	// PValue stores the p-value for each test
+	// PValue tracks the most recently observed p-value for each statistical test.
 	PValue = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "nist_p_value",
@@ -51,7 +58,8 @@ var (
 		[]string{"test"},
 	)
 
-	// RequestsTotal counts total gRPC requests
+	// RequestsTotal counts gRPC requests, labelled by method name and outcome
+	// ("success" or "error").
 	RequestsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "nist_requests_total",

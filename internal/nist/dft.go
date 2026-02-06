@@ -32,6 +32,7 @@ func DiscreteFourierTransformTest(bitstream []byte) (float64, bool) {
 		magnitudes[i] = cmplx.Abs(coeffs[i])
 	}
 
+	// 2.995732274 equals -ln(0.05), the 95% threshold for spectral peaks.
 	upperBound := math.Sqrt(2.995732274 * float64(n))
 	count := 0
 	for _, m := range magnitudes {

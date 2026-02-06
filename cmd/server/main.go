@@ -1,4 +1,7 @@
-// Package main is the entry point for the NIST service
+// Package main provides the entry point for the NIST SP 800-22 Rev 1a
+// Statistical Test Service. It bootstraps a gRPC server with optional TLS
+// and OIDC authentication, exposes a Prometheus metrics endpoint with pprof
+// profiling, and handles graceful shutdown on SIGTERM and SIGINT.
 package main
 
 import (
@@ -36,14 +39,15 @@ func main() {
 	}
 }
 
+// run initialises the service components (configuration, logging, metrics server,
+// gRPC server with interceptors) and blocks until a termination signal is received
+// or the provided context is cancelled.
 func run(ctx context.Context) error {
-	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Setup logging
 	setupLogging(cfg.LogLevel)
 
 	log.Info().
@@ -53,7 +57,6 @@ func run(ctx context.Context) error {
 		Bool("auth_enabled", cfg.AuthEnabled).
 		Msg("Starting NIST Statistical Test Service")
 
-	// Start Prometheus metrics server
 	metricsLn, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.MetricsPort))
 	if err != nil {
 		return fmt.Errorf("failed to create metrics listener: %w", err)
@@ -61,7 +64,6 @@ func run(ctx context.Context) error {
 	metricsSrv := startMetricsServer(metricsLn)
 	defer metricsSrv.Close()
 
-	// Create gRPC listener
 	grpcLn, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCPort))
 	if err != nil {
 		return fmt.Errorf("failed to create gRPC listener: %w", err)
@@ -77,8 +79,6 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("failed to create gRPC server: %w", err)
 	}
 
-	// Handle graceful shutdown
-	// We merge the provided context with signal handling
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -89,10 +89,8 @@ func run(ctx context.Context) error {
 		case <-sigChan:
 			log.Info().Msg("Shutting down gracefully...")
 		case <-ctx.Done():
-			// Context cancelled (e.g. by test)
 		}
 
-		// Graceful stop
 		grpcServer.GracefulStop()
 		cancel()
 	}()
@@ -101,7 +99,6 @@ func run(ctx context.Context) error {
 		Int("port", cfg.GRPCPort).
 		Msg("gRPC server listening")
 
-	// Start serving (blocking)
 	if err := grpcServer.Serve(grpcLn); err != nil {
 		return fmt.Errorf("failed to serve: %w", err)
 	}
@@ -109,15 +106,15 @@ func run(ctx context.Context) error {
 	return nil
 }
 
-// setupLogging configures the zerolog logger
+// setupLogging configures the global zerolog logger with a human-readable console
+// writer and sets the log level according to the provided string. Unrecognised
+// level strings default to "info".
 func setupLogging(level string) {
-	// Pretty logging for development
 	log.Logger = log.Output(zerolog.ConsoleWriter{
 		Out:        os.Stderr,
 		TimeFormat: time.RFC3339,
 	})
 
-	// Set log level
 	switch level {
 	case "debug":
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
@@ -132,7 +129,10 @@ func setupLogging(level string) {
 	}
 }
 
-// startMetricsServer starts the Prometheus metrics HTTP server
+// startMetricsServer creates and starts an HTTP server on the given listener,
+// exposing Prometheus metrics at /metrics and a JSON health endpoint at /health.
+// The server runs in a background goroutine; the caller is responsible for
+// closing the returned *http.Server when shutting down.
 func startMetricsServer(ln net.Listener) *http.Server {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
@@ -171,7 +171,8 @@ func startMetricsServer(ln net.Listener) *http.Server {
 	return srv
 }
 
-// runGRPCServer creates and configures the gRPC server
+// runGRPCServer creates a gRPC server with the given interceptors, registers the
+// NIST SP 800-22 test service, the gRPC health check service, and server reflection.
 func runGRPCServer(cfg *config.Config, unaryInterceptors []grpc.UnaryServerInterceptor) (*grpc.Server, error) {
 	serverOpts, err := buildGRPCServerOptions(cfg, unaryInterceptors)
 	if err != nil {
@@ -180,21 +181,22 @@ func runGRPCServer(cfg *config.Config, unaryInterceptors []grpc.UnaryServerInter
 
 	grpcServer := grpc.NewServer(serverOpts...)
 
-	// Register NIST SP 800-22 service
 	nistServer := service.NewServer()
 	pb.RegisterSp80022TestServiceServer(grpcServer, nistServer)
 
-	// Register health check service
 	healthServer := health.NewServer()
 	healthpb.RegisterHealthServer(grpcServer, healthServer)
 	healthServer.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 
-	// Register reflection for grpcurl
 	reflection.Register(grpcServer)
 
 	return grpcServer, nil
 }
 
+// buildUnaryInterceptors assembles the chain of gRPC unary interceptors. The chain
+// always includes request-ID injection and request logging. When authentication is
+// enabled, an OIDC JWT validator interceptor is appended that exempts the gRPC
+// health check methods from authentication.
 func buildUnaryInterceptors(cfg *config.Config) ([]grpc.UnaryServerInterceptor, error) {
 	interceptors := []grpc.UnaryServerInterceptor{
 		middleware.UnaryRequestIDInterceptor(),
@@ -232,6 +234,9 @@ func buildUnaryInterceptors(cfg *config.Config) ([]grpc.UnaryServerInterceptor, 
 	return append(interceptors, authInterceptor), nil
 }
 
+// buildGRPCServerOptions assembles gRPC server options from configuration. When TLS
+// is enabled, it constructs TLS credentials from the configured certificate, key,
+// optional CA file, client authentication mode, and minimum TLS version.
 func buildGRPCServerOptions(cfg *config.Config, unaryInterceptors []grpc.UnaryServerInterceptor) ([]grpc.ServerOption, error) {
 	opts := []grpc.ServerOption{
 		grpc.ChainUnaryInterceptor(unaryInterceptors...),
@@ -276,6 +281,7 @@ func buildGRPCServerOptions(cfg *config.Config, unaryInterceptors []grpc.UnarySe
 	return append(opts, tlsOpt), nil
 }
 
+// tlsVersionString returns a human-readable label for the given TLS version constant.
 func tlsVersionString(version uint16) string {
 	switch version {
 	case tls.VersionTLS13:
@@ -287,7 +293,8 @@ func tlsVersionString(version uint16) string {
 	}
 }
 
-// loggingInterceptor logs all gRPC requests with request ID
+// loggingInterceptor is a gRPC unary server interceptor that logs every request
+// with its associated request ID, method name, duration, and outcome.
 func loggingInterceptor(
 	ctx context.Context,
 	req interface{},
@@ -296,13 +303,10 @@ func loggingInterceptor(
 ) (interface{}, error) {
 	start := time.Now()
 
-	// Get request ID from context
 	requestID := middleware.GetRequestID(ctx)
 
-	// Call the handler
 	resp, err := handler(ctx, req)
 
-	// Log the request
 	duration := time.Since(start)
 
 	if err != nil {

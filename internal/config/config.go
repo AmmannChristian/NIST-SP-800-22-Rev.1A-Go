@@ -1,3 +1,6 @@
+// Package config provides environment-variable-based configuration for the
+// NIST SP 800-22 service, including gRPC port, TLS settings, Prometheus metrics
+// port, log level, and OIDC authentication parameters.
 package config
 
 import (
@@ -8,7 +11,8 @@ import (
 	"strings"
 )
 
-// Config holds all service configuration
+// Config holds all service configuration loaded from environment variables.
+// Fields map one-to-one to environment variables (e.g. GRPCPort from GRPC_PORT).
 type Config struct {
 	// gRPC server configuration
 	GRPCPort int
@@ -34,7 +38,9 @@ type Config struct {
 	AuthJWKSURL  string
 }
 
-// Load reads configuration from environment variables
+// Load reads configuration from environment variables with sensible defaults
+// and validates the result. It returns an error if any required values are
+// missing or out of range.
 func Load() (*Config, error) {
 	cfg := &Config{
 		GRPCPort:      getEnvInt("GRPC_PORT", 9090),
@@ -59,7 +65,9 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// Validate checks if the configuration is valid
+// Validate checks that all configuration values are within acceptable ranges.
+// It enforces that authentication credentials are present when AUTH_ENABLED is
+// true and that TLS certificate paths are set when TLS_ENABLED is true.
 func (c *Config) Validate() error {
 	if c.GRPCPort < 1 || c.GRPCPort > 65535 {
 		return fmt.Errorf("invalid GRPC_PORT: %d (must be 1-65535)", c.GRPCPort)
@@ -117,6 +125,10 @@ func (c *Config) TLSMinVersionValue() (uint16, error) {
 	return parseTLSMinVersion(c.TLSMinVersion)
 }
 
+// parseTLSClientAuth maps a human-readable client authentication mode string
+// to the corresponding tls.ClientAuthType constant. The mapping is
+// case-insensitive and accepts several aliases (e.g. "mtls" for
+// RequireAndVerifyClientCert).
 func parseTLSClientAuth(mode string) (tls.ClientAuthType, error) {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case "", "none", "noclientcert":
@@ -134,6 +146,8 @@ func parseTLSClientAuth(mode string) (tls.ClientAuthType, error) {
 	}
 }
 
+// parseTLSMinVersion maps a version string (e.g. "1.2", "tls1.3") to the
+// corresponding crypto/tls version constant. Only TLS 1.2 and 1.3 are supported.
 func parseTLSMinVersion(version string) (uint16, error) {
 	switch strings.ToLower(strings.TrimSpace(version)) {
 	case "", "default", "1.2", "tls1.2", "tls12":

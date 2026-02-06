@@ -15,6 +15,10 @@ func LongestRunOfOnesTest(bitstream []byte) (float64, bool) {
 		return 0, false
 	}
 
+	// K, M, V, and pi are chosen based on the input length n, following the
+	// NIST specification. K is the number of categories minus one, M is the
+	// block size, V holds the longest-run bin boundaries, and pi contains the
+	// theoretical probabilities for each bin under the null hypothesis.
 	var K, M int
 	var V []int
 	var pi []float64

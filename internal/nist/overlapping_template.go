@@ -67,6 +67,10 @@ func OverlappingTemplateTest(bitstream []byte, m int) (float64, bool) {
 	return pValue, pValue >= Alpha
 }
 
+// prHelper computes the probability Pr(u) for the overlapping template
+// matching test, where u is the observed match count and eta is half the
+// expected number of matches per block. The calculation uses a recursive
+// combinatorial formula involving log-gamma terms to avoid overflow.
 func prHelper(u int, eta float64) float64 {
 	if u == 0 {
 		return math.Exp(-eta)
