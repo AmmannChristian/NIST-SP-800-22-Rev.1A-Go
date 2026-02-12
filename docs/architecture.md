@@ -28,9 +28,9 @@ The module name is `github.com/AmmannChristian/nist-sp800-22-rev1a` and requires
 
 ## 2. Role within the High-Entropy-API Platform
 
-Within the broader high-entropy-api system, this service functions as one of two external NIST validation microservices consumed by the `entropy-analytics` Quarkus/Java backend. The entropy-analytics service communicates with this service over gRPC using a shared Protocol Buffers contract defined in the `nist.sp800_22.v1` package.
+Within the broader high-entropy-api system, this service functions as one of two external NIST validation microservices consumed by the `entropy-processor` Quarkus/Java backend. The entropy-processor service communicates with this service over gRPC using a shared Protocol Buffers contract defined in the `nist.sp800_22.v1` package.
 
-The overall data flow is as follows: a hardware random number generator based on Strontium-90 radioactive decay produces entropy events that are collected by the edge gateway (`entropy-tdc-gateway`). After whitening and conditioning, the bitstream data is forwarded to the entropy-analytics backend. When NIST SP 800-22 validation is required, the backend serialises the bitstream into a gRPC request and forwards it to this service for statistical analysis. The service returns the complete test results, which the backend persists and exposes through its REST API.
+The overall data flow is as follows: a hardware random number generator based on Strontium-90 radioactive decay produces entropy events that are collected by the edge gateway (`entropy-tdc-gateway`). After whitening and conditioning, the bitstream data is forwarded to the entropy-processor backend. When NIST SP 800-22 validation is required, the backend serialises the bitstream into a gRPC request and forwards it to this service for statistical analysis. The service returns the complete test results, which the backend persists and exposes through its REST API.
 
 ```mermaid
 graph LR
@@ -40,7 +40,7 @@ graph LR
     end
 
     subgraph Backend["Backend Layer"]
-        EA["entropy-analytics<br/>(Quarkus/Java)"]
+        EA["entropy-processor<br/>(Quarkus/Java)"]
     end
 
     subgraph Validation["Validation Services"]
@@ -54,7 +54,7 @@ graph LR
     EA -->|"gRPC"| SP90B
 ```
 
-The proto contract is maintained in two locations. The authoritative Go-side definition resides at `api/nist/v1/nist_sp800_22.proto` within this service, and a mirrored Java-side definition with additional Java-specific options resides at `entropy-analytics/src/main/proto/nist_sp800_22.proto`. Both files share identical message and service definitions in the `nist.sp800_22.v1` package, differing only in language-specific code generation options (`go_package` versus `java_package`, `java_multiple_files`, and `java_outer_classname`).
+The proto contract is maintained in two locations. The authoritative Go-side definition resides at `api/nist/v1/nist_sp800_22.proto` within this service, and a mirrored Java-side definition with additional Java-specific options resides at `entropy-processor/src/main/proto/nist_sp800_22.proto`. Both files share identical message and service definitions in the `nist.sp800_22.v1` package, differing only in language-specific code generation options (`go_package` versus `java_package`, `java_multiple_files`, and `java_outer_classname`).
 
 ## 3. Project Structure
 
