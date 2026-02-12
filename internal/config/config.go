@@ -45,6 +45,12 @@ type Config struct {
 	AuthIntrospectionPrivateKeyFile         string
 	AuthIntrospectionPrivateKeyJWTKeyID     string
 	AuthIntrospectionPrivateKeyJWTAlgorithm string
+	AuthzRequiredRoles                      []string
+	AuthzRequiredScopes                     []string
+	AuthzRoleMatchMode                      string
+	AuthzScopeMatchMode                     string
+	AuthzRoleClaimPaths                     []string
+	AuthzScopeClaimPaths                    []string
 }
 
 // Load reads configuration from environment variables with sensible defaults
@@ -74,6 +80,12 @@ func Load() (*Config, error) {
 		AuthIntrospectionPrivateKeyFile:         getEnvString("AUTH_INTROSPECTION_PRIVATE_KEY_FILE", ""),
 		AuthIntrospectionPrivateKeyJWTKeyID:     getEnvString("AUTH_INTROSPECTION_PRIVATE_KEY_JWT_KID", ""),
 		AuthIntrospectionPrivateKeyJWTAlgorithm: getEnvString("AUTH_INTROSPECTION_PRIVATE_KEY_JWT_ALG", ""),
+		AuthzRequiredRoles:                      parseCSV(getEnvString("AUTHZ_REQUIRED_ROLES", "")),
+		AuthzRequiredScopes:                     parseCSV(getEnvString("AUTHZ_REQUIRED_SCOPES", "")),
+		AuthzRoleMatchMode:                      getEnvString("AUTHZ_ROLE_MATCH_MODE", "any"),
+		AuthzScopeMatchMode:                     getEnvString("AUTHZ_SCOPE_MATCH_MODE", "any"),
+		AuthzRoleClaimPaths:                     parseCSV(getEnvString("AUTHZ_ROLE_CLAIM_PATHS", "")),
+		AuthzScopeClaimPaths:                    parseCSV(getEnvString("AUTHZ_SCOPE_CLAIM_PATHS", "")),
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -105,6 +117,23 @@ func (c *Config) Validate() error {
 	if !validLogLevels[c.LogLevel] {
 		return fmt.Errorf("invalid LOG_LEVEL: %s (must be debug/info/warn/error)", c.LogLevel)
 	}
+
+	roleMatchMode, err := parseAuthzMatchMode(c.AuthzRoleMatchMode, "AUTHZ_ROLE_MATCH_MODE")
+	if err != nil {
+		return err
+	}
+	c.AuthzRoleMatchMode = roleMatchMode
+
+	scopeMatchMode, err := parseAuthzMatchMode(c.AuthzScopeMatchMode, "AUTHZ_SCOPE_MATCH_MODE")
+	if err != nil {
+		return err
+	}
+	c.AuthzScopeMatchMode = scopeMatchMode
+
+	c.AuthzRequiredRoles = normalizeCSVValues(c.AuthzRequiredRoles)
+	c.AuthzRequiredScopes = normalizeCSVValues(c.AuthzRequiredScopes)
+	c.AuthzRoleClaimPaths = normalizeCSVValues(c.AuthzRoleClaimPaths)
+	c.AuthzScopeClaimPaths = normalizeCSVValues(c.AuthzScopeClaimPaths)
 
 	if c.AuthEnabled {
 		if c.AuthIssuer == "" {
@@ -257,6 +286,42 @@ func parseAuthIntrospectionPrivateKeyJWTAlgorithm(algorithm string) (string, err
 	default:
 		return "", fmt.Errorf("invalid AUTH_INTROSPECTION_PRIVATE_KEY_JWT_ALG: %s (use RS256 or ES256)", algorithm)
 	}
+}
+
+func parseAuthzMatchMode(mode string, envName string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "", "any":
+		return "any", nil
+	case "all":
+		return "all", nil
+	default:
+		return "", fmt.Errorf("invalid %s: %s (use any or all)", envName, mode)
+	}
+}
+
+func parseCSV(value string) []string {
+	return normalizeCSVValues(strings.Split(value, ","))
+}
+
+func normalizeCSVValues(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	normalizedValues := make([]string, 0, len(values))
+	for _, value := range values {
+		normalizedValue := strings.TrimSpace(value)
+		if normalizedValue == "" {
+			continue
+		}
+		normalizedValues = append(normalizedValues, normalizedValue)
+	}
+
+	if len(normalizedValues) == 0 {
+		return nil
+	}
+
+	return normalizedValues
 }
 
 // getEnvString reads a string from environment variable or returns default

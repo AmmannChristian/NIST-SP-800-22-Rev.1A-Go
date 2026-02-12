@@ -156,6 +156,37 @@ func TestBuildUnaryInterceptorsWithOpaqueAuthPrivateKeyJWTZitadelJSON(t *testing
 	}
 }
 
+func TestBuildAuthorizationPolicy(t *testing.T) {
+	cfg := &config.Config{
+		AuthzRequiredRoles:   []string{"NIST_ROLE"},
+		AuthzRequiredScopes:  []string{"openid", "profile"},
+		AuthzRoleMatchMode:   "all",
+		AuthzScopeMatchMode:  "any",
+		AuthzRoleClaimPaths:  []string{"roles", "realm_access.roles"},
+		AuthzScopeClaimPaths: []string{"scope", "scp"},
+	}
+
+	policy := buildAuthorizationPolicy(cfg)
+	if len(policy.RequiredRoles) != 1 || policy.RequiredRoles[0] != "NIST_ROLE" {
+		t.Fatalf("unexpected policy required roles: %#v", policy.RequiredRoles)
+	}
+	if len(policy.RequiredScopes) != 2 || policy.RequiredScopes[0] != "openid" || policy.RequiredScopes[1] != "profile" {
+		t.Fatalf("unexpected policy required scopes: %#v", policy.RequiredScopes)
+	}
+	if policy.RoleMatchMode != "all" {
+		t.Fatalf("unexpected role match mode: %s", policy.RoleMatchMode)
+	}
+	if policy.ScopeMatchMode != "any" {
+		t.Fatalf("unexpected scope match mode: %s", policy.ScopeMatchMode)
+	}
+	if len(policy.RoleClaimPaths) != 2 || policy.RoleClaimPaths[1] != "realm_access.roles" {
+		t.Fatalf("unexpected policy role claim paths: %#v", policy.RoleClaimPaths)
+	}
+	if len(policy.ScopeClaimPaths) != 2 || policy.ScopeClaimPaths[1] != "scp" {
+		t.Fatalf("unexpected policy scope claim paths: %#v", policy.ScopeClaimPaths)
+	}
+}
+
 func TestStartMetricsServer(t *testing.T) {
 	ln := mustListen(t)
 	// No defer ln.Close() here, server will close it

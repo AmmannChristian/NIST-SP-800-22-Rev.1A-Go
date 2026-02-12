@@ -14,6 +14,12 @@ func TestLoadWithEnvOverrides(t *testing.T) {
 	t.Setenv("AUTH_AUDIENCE", "nist-api")
 	t.Setenv("AUTH_JWKS_URL", "https://issuer.example.com/jwks.json")
 	t.Setenv("AUTH_TOKEN_TYPE", "jwt")
+	t.Setenv("AUTHZ_REQUIRED_ROLES", "NIST_ROLE, entropy-admin ")
+	t.Setenv("AUTHZ_REQUIRED_SCOPES", "openid, profile")
+	t.Setenv("AUTHZ_ROLE_MATCH_MODE", "all")
+	t.Setenv("AUTHZ_SCOPE_MATCH_MODE", "any")
+	t.Setenv("AUTHZ_ROLE_CLAIM_PATHS", "roles,urn:zitadel:iam:org:project:roles")
+	t.Setenv("AUTHZ_SCOPE_CLAIM_PATHS", "scope,scp")
 	t.Setenv("TLS_ENABLED", "true")
 	t.Setenv("TLS_CERT_FILE", "/tmp/cert.pem")
 	t.Setenv("TLS_KEY_FILE", "/tmp/key.pem")
@@ -46,6 +52,24 @@ func TestLoadWithEnvOverrides(t *testing.T) {
 	}
 	if cfg.AuthTokenType != "jwt" {
 		t.Fatalf("unexpected auth token type: %s", cfg.AuthTokenType)
+	}
+	if len(cfg.AuthzRequiredRoles) != 2 || cfg.AuthzRequiredRoles[0] != "NIST_ROLE" || cfg.AuthzRequiredRoles[1] != "entropy-admin" {
+		t.Fatalf("unexpected authz required roles: %#v", cfg.AuthzRequiredRoles)
+	}
+	if len(cfg.AuthzRequiredScopes) != 2 || cfg.AuthzRequiredScopes[0] != "openid" || cfg.AuthzRequiredScopes[1] != "profile" {
+		t.Fatalf("unexpected authz required scopes: %#v", cfg.AuthzRequiredScopes)
+	}
+	if cfg.AuthzRoleMatchMode != "all" {
+		t.Fatalf("unexpected authz role match mode: %s", cfg.AuthzRoleMatchMode)
+	}
+	if cfg.AuthzScopeMatchMode != "any" {
+		t.Fatalf("unexpected authz scope match mode: %s", cfg.AuthzScopeMatchMode)
+	}
+	if len(cfg.AuthzRoleClaimPaths) != 2 || cfg.AuthzRoleClaimPaths[0] != "roles" || cfg.AuthzRoleClaimPaths[1] != "urn:zitadel:iam:org:project:roles" {
+		t.Fatalf("unexpected authz role claim paths: %#v", cfg.AuthzRoleClaimPaths)
+	}
+	if len(cfg.AuthzScopeClaimPaths) != 2 || cfg.AuthzScopeClaimPaths[0] != "scope" || cfg.AuthzScopeClaimPaths[1] != "scp" {
+		t.Fatalf("unexpected authz scope claim paths: %#v", cfg.AuthzScopeClaimPaths)
 	}
 	if !cfg.TLSEnabled {
 		t.Fatalf("expected TLSEnabled to be true")
@@ -196,6 +220,8 @@ func TestValidateFailures(t *testing.T) {
 		{"auth opaque private key jwt missing private key", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthIssuer: "https://issuer.example.com", AuthAudience: "api", AuthTokenType: "opaque", AuthIntrospectionURL: "https://issuer.example.com/oauth2/introspect", AuthIntrospectionAuthMethod: "private_key_jwt"}},
 		{"auth opaque private key jwt both inline and file set", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthIssuer: "https://issuer.example.com", AuthAudience: "api", AuthTokenType: "opaque", AuthIntrospectionURL: "https://issuer.example.com/oauth2/introspect", AuthIntrospectionAuthMethod: "private_key_jwt", AuthIntrospectionPrivateKey: "PEM", AuthIntrospectionPrivateKeyFile: "/tmp/key.json"}},
 		{"auth opaque private key jwt invalid algorithm", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthIssuer: "https://issuer.example.com", AuthAudience: "api", AuthTokenType: "opaque", AuthIntrospectionURL: "https://issuer.example.com/oauth2/introspect", AuthIntrospectionAuthMethod: "private_key_jwt", AuthIntrospectionPrivateKey: "PEM", AuthIntrospectionPrivateKeyJWTAlgorithm: "PS256"}},
+		{"authz invalid role match mode", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthzRoleMatchMode: "one"}},
+		{"authz invalid scope match mode", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthzScopeMatchMode: "one"}},
 		{"tls enabled missing cert", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", TLSEnabled: true, TLSKeyFile: "/tmp/key.pem"}},
 		{"tls enabled missing key", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", TLSEnabled: true, TLSCertFile: "/tmp/cert.pem"}},
 		{"tls enabled invalid client auth", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", TLSEnabled: true, TLSCertFile: "/tmp/cert.pem", TLSKeyFile: "/tmp/key.pem", TLSClientAuth: "invalid"}},
@@ -269,6 +295,8 @@ func TestLoadDefaults(t *testing.T) {
 		"AUTH_INTROSPECTION_URL", "AUTH_INTROSPECTION_AUTH_METHOD", "AUTH_INTROSPECTION_CLIENT_ID", "AUTH_INTROSPECTION_CLIENT_SECRET",
 		"AUTH_INTROSPECTION_PRIVATE_KEY", "AUTH_INTROSPECTION_PRIVATE_KEY_FILE",
 		"AUTH_INTROSPECTION_PRIVATE_KEY_JWT_KID", "AUTH_INTROSPECTION_PRIVATE_KEY_JWT_ALG",
+		"AUTHZ_REQUIRED_ROLES", "AUTHZ_REQUIRED_SCOPES", "AUTHZ_ROLE_MATCH_MODE", "AUTHZ_SCOPE_MATCH_MODE",
+		"AUTHZ_ROLE_CLAIM_PATHS", "AUTHZ_SCOPE_CLAIM_PATHS",
 		"TLS_ENABLED", "TLS_CERT_FILE", "TLS_KEY_FILE", "TLS_CA_FILE", "TLS_CLIENT_AUTH", "TLS_MIN_VERSION",
 	} {
 		t.Setenv(key, "")
@@ -294,6 +322,15 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if cfg.AuthIssuer != "" || cfg.AuthAudience != "" || cfg.AuthJWKSURL != "" || cfg.AuthIntrospectionURL != "" || cfg.AuthIntrospectionClientID != "" || cfg.AuthIntrospectionClientSecret != "" || cfg.AuthIntrospectionPrivateKey != "" || cfg.AuthIntrospectionPrivateKeyFile != "" || cfg.AuthIntrospectionPrivateKeyJWTKeyID != "" || cfg.AuthIntrospectionPrivateKeyJWTAlgorithm != "" {
 		t.Errorf("expected auth config defaults to be empty, got %+v", cfg)
+	}
+	if len(cfg.AuthzRequiredRoles) != 0 || len(cfg.AuthzRequiredScopes) != 0 || len(cfg.AuthzRoleClaimPaths) != 0 || len(cfg.AuthzScopeClaimPaths) != 0 {
+		t.Errorf("expected authz list defaults to be empty, got %+v", cfg)
+	}
+	if cfg.AuthzRoleMatchMode != "any" {
+		t.Errorf("expected AuthzRoleMatchMode to default to 'any', got %s", cfg.AuthzRoleMatchMode)
+	}
+	if cfg.AuthzScopeMatchMode != "any" {
+		t.Errorf("expected AuthzScopeMatchMode to default to 'any', got %s", cfg.AuthzScopeMatchMode)
 	}
 	if cfg.AuthTokenType != "jwt" {
 		t.Errorf("expected AuthTokenType to default to 'jwt', got %s", cfg.AuthTokenType)
