@@ -36,3 +36,5 @@ experiments/
 *.log
 build
 .env
+.cache
+.gocache

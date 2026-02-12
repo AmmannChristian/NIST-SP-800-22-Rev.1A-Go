@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"testing"
 )
 
@@ -66,6 +67,7 @@ func TestLoadWithOpaqueAuthEnvOverrides(t *testing.T) {
 	t.Setenv("AUTH_AUDIENCE", "nist-api")
 	t.Setenv("AUTH_TOKEN_TYPE", "opaque")
 	t.Setenv("AUTH_INTROSPECTION_URL", "https://issuer.example.com/oauth2/introspect")
+	t.Setenv("AUTH_INTROSPECTION_AUTH_METHOD", "client_secret_basic")
 	t.Setenv("AUTH_INTROSPECTION_CLIENT_ID", "svc-client")
 	t.Setenv("AUTH_INTROSPECTION_CLIENT_SECRET", "svc-secret")
 
@@ -80,11 +82,99 @@ func TestLoadWithOpaqueAuthEnvOverrides(t *testing.T) {
 	if cfg.AuthIntrospectionURL != "https://issuer.example.com/oauth2/introspect" {
 		t.Fatalf("unexpected introspection URL: %s", cfg.AuthIntrospectionURL)
 	}
+	if cfg.AuthIntrospectionAuthMethod != "client_secret_basic" {
+		t.Fatalf("unexpected introspection auth method: %s", cfg.AuthIntrospectionAuthMethod)
+	}
 	if cfg.AuthIntrospectionClientID != "svc-client" {
 		t.Fatalf("unexpected introspection client id: %s", cfg.AuthIntrospectionClientID)
 	}
 	if cfg.AuthIntrospectionClientSecret != "svc-secret" {
 		t.Fatalf("unexpected introspection client secret: %s", cfg.AuthIntrospectionClientSecret)
+	}
+}
+
+func TestLoadWithOpaquePrivateKeyJWTEnvOverrides(t *testing.T) {
+	t.Setenv("AUTH_ENABLED", "true")
+	t.Setenv("AUTH_ISSUER", "https://issuer.example.com")
+	t.Setenv("AUTH_AUDIENCE", "nist-api")
+	t.Setenv("AUTH_TOKEN_TYPE", "opaque")
+	t.Setenv("AUTH_INTROSPECTION_URL", "https://issuer.example.com/oauth2/introspect")
+	t.Setenv("AUTH_INTROSPECTION_AUTH_METHOD", "private_key_jwt")
+	t.Setenv("AUTH_INTROSPECTION_PRIVATE_KEY", `{"keyId":"kid-1","key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----","clientId":"svc-client"}`)
+	t.Setenv("AUTH_INTROSPECTION_PRIVATE_KEY_JWT_ALG", "rs256")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+
+	if cfg.AuthIntrospectionAuthMethod != "private_key_jwt" {
+		t.Fatalf("unexpected introspection auth method: %s", cfg.AuthIntrospectionAuthMethod)
+	}
+	if cfg.AuthIntrospectionPrivateKey != `{"keyId":"kid-1","key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----","clientId":"svc-client"}` {
+		t.Fatalf("unexpected private key value: %s", cfg.AuthIntrospectionPrivateKey)
+	}
+	if cfg.AuthIntrospectionPrivateKeyJWTAlgorithm != "RS256" {
+		t.Fatalf("unexpected private key jwt alg value: %s", cfg.AuthIntrospectionPrivateKeyJWTAlgorithm)
+	}
+}
+
+func TestLoadWithOpaquePrivateKeyJWTFromFile(t *testing.T) {
+	privateKeyFile, err := os.CreateTemp(t.TempDir(), "zitadel-key-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	_, err = privateKeyFile.WriteString(`{"keyId":"kid-from-file","key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----","clientId":"svc-client"}`)
+	if err != nil {
+		t.Fatalf("failed to write temp key file: %v", err)
+	}
+	if err := privateKeyFile.Close(); err != nil {
+		t.Fatalf("failed to close temp key file: %v", err)
+	}
+
+	t.Setenv("AUTH_ENABLED", "true")
+	t.Setenv("AUTH_ISSUER", "https://issuer.example.com")
+	t.Setenv("AUTH_AUDIENCE", "nist-api")
+	t.Setenv("AUTH_TOKEN_TYPE", "opaque")
+	t.Setenv("AUTH_INTROSPECTION_URL", "https://issuer.example.com/oauth2/introspect")
+	t.Setenv("AUTH_INTROSPECTION_AUTH_METHOD", "private_key_jwt")
+	t.Setenv("AUTH_INTROSPECTION_PRIVATE_KEY_FILE", privateKeyFile.Name())
+
+	cfg, loadErr := Load()
+	if loadErr != nil {
+		t.Fatalf("Load() returned error: %v", loadErr)
+	}
+
+	if cfg.AuthIntrospectionAuthMethod != "private_key_jwt" {
+		t.Fatalf("unexpected introspection auth method: %s", cfg.AuthIntrospectionAuthMethod)
+	}
+	if cfg.AuthIntrospectionPrivateKey != `{"keyId":"kid-from-file","key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----","clientId":"svc-client"}` {
+		t.Fatalf("unexpected private key value: %s", cfg.AuthIntrospectionPrivateKey)
+	}
+	if cfg.AuthIntrospectionPrivateKeyFile != privateKeyFile.Name() {
+		t.Fatalf("unexpected private key file path: %s", cfg.AuthIntrospectionPrivateKeyFile)
+	}
+}
+
+func TestLoadWithOpaquePrivateKeyJWTFromEmptyFileFails(t *testing.T) {
+	privateKeyFile, err := os.CreateTemp(t.TempDir(), "empty-zitadel-key-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	if err := privateKeyFile.Close(); err != nil {
+		t.Fatalf("failed to close temp key file: %v", err)
+	}
+
+	t.Setenv("AUTH_ENABLED", "true")
+	t.Setenv("AUTH_ISSUER", "https://issuer.example.com")
+	t.Setenv("AUTH_AUDIENCE", "nist-api")
+	t.Setenv("AUTH_TOKEN_TYPE", "opaque")
+	t.Setenv("AUTH_INTROSPECTION_URL", "https://issuer.example.com/oauth2/introspect")
+	t.Setenv("AUTH_INTROSPECTION_AUTH_METHOD", "private_key_jwt")
+	t.Setenv("AUTH_INTROSPECTION_PRIVATE_KEY_FILE", privateKeyFile.Name())
+
+	if _, loadErr := Load(); loadErr == nil {
+		t.Fatal("expected error for empty AUTH_INTROSPECTION_PRIVATE_KEY_FILE")
 	}
 }
 
@@ -99,9 +189,13 @@ func TestValidateFailures(t *testing.T) {
 		{"auth enabled missing issuer", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthAudience: "api"}},
 		{"auth enabled missing audience", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthIssuer: "https://issuer.example.com"}},
 		{"auth enabled invalid token type", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthIssuer: "https://issuer.example.com", AuthAudience: "api", AuthTokenType: "paseto"}},
-		{"auth opaque missing introspection url", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthIssuer: "https://issuer.example.com", AuthAudience: "api", AuthTokenType: "opaque", AuthIntrospectionClientID: "svc-client", AuthIntrospectionClientSecret: "svc-secret"}},
-		{"auth opaque missing introspection client id", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthIssuer: "https://issuer.example.com", AuthAudience: "api", AuthTokenType: "opaque", AuthIntrospectionURL: "https://issuer.example.com/oauth2/introspect", AuthIntrospectionClientSecret: "svc-secret"}},
-		{"auth opaque missing introspection client secret", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthIssuer: "https://issuer.example.com", AuthAudience: "api", AuthTokenType: "opaque", AuthIntrospectionURL: "https://issuer.example.com/oauth2/introspect", AuthIntrospectionClientID: "svc-client"}},
+		{"auth opaque missing introspection url", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthIssuer: "https://issuer.example.com", AuthAudience: "api", AuthTokenType: "opaque", AuthIntrospectionAuthMethod: "client_secret_basic", AuthIntrospectionClientID: "svc-client", AuthIntrospectionClientSecret: "svc-secret"}},
+		{"auth opaque missing introspection client id", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthIssuer: "https://issuer.example.com", AuthAudience: "api", AuthTokenType: "opaque", AuthIntrospectionURL: "https://issuer.example.com/oauth2/introspect", AuthIntrospectionAuthMethod: "client_secret_basic", AuthIntrospectionClientSecret: "svc-secret"}},
+		{"auth opaque missing introspection client secret", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthIssuer: "https://issuer.example.com", AuthAudience: "api", AuthTokenType: "opaque", AuthIntrospectionURL: "https://issuer.example.com/oauth2/introspect", AuthIntrospectionAuthMethod: "client_secret_basic", AuthIntrospectionClientID: "svc-client"}},
+		{"auth opaque invalid introspection auth method", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthIssuer: "https://issuer.example.com", AuthAudience: "api", AuthTokenType: "opaque", AuthIntrospectionURL: "https://issuer.example.com/oauth2/introspect", AuthIntrospectionAuthMethod: "mtls"}},
+		{"auth opaque private key jwt missing private key", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthIssuer: "https://issuer.example.com", AuthAudience: "api", AuthTokenType: "opaque", AuthIntrospectionURL: "https://issuer.example.com/oauth2/introspect", AuthIntrospectionAuthMethod: "private_key_jwt"}},
+		{"auth opaque private key jwt both inline and file set", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthIssuer: "https://issuer.example.com", AuthAudience: "api", AuthTokenType: "opaque", AuthIntrospectionURL: "https://issuer.example.com/oauth2/introspect", AuthIntrospectionAuthMethod: "private_key_jwt", AuthIntrospectionPrivateKey: "PEM", AuthIntrospectionPrivateKeyFile: "/tmp/key.json"}},
+		{"auth opaque private key jwt invalid algorithm", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthIssuer: "https://issuer.example.com", AuthAudience: "api", AuthTokenType: "opaque", AuthIntrospectionURL: "https://issuer.example.com/oauth2/introspect", AuthIntrospectionAuthMethod: "private_key_jwt", AuthIntrospectionPrivateKey: "PEM", AuthIntrospectionPrivateKeyJWTAlgorithm: "PS256"}},
 		{"tls enabled missing cert", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", TLSEnabled: true, TLSKeyFile: "/tmp/key.pem"}},
 		{"tls enabled missing key", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", TLSEnabled: true, TLSCertFile: "/tmp/cert.pem"}},
 		{"tls enabled invalid client auth", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", TLSEnabled: true, TLSCertFile: "/tmp/cert.pem", TLSKeyFile: "/tmp/key.pem", TLSClientAuth: "invalid"}},
@@ -134,6 +228,7 @@ func TestValidateOpaqueAuthSuccess(t *testing.T) {
 		AuthAudience:                  "api",
 		AuthTokenType:                 "opaque",
 		AuthIntrospectionURL:          "https://issuer.example.com/oauth2/introspect",
+		AuthIntrospectionAuthMethod:   "client_secret_basic",
 		AuthIntrospectionClientID:     "svc-client",
 		AuthIntrospectionClientSecret: "svc-secret",
 	}
@@ -143,12 +238,37 @@ func TestValidateOpaqueAuthSuccess(t *testing.T) {
 	}
 }
 
+func TestValidateOpaquePrivateKeyJWTAuthSuccess(t *testing.T) {
+	cfg := Config{
+		GRPCPort:                                9000,
+		MetricsPort:                             9001,
+		LogLevel:                                "info",
+		AuthEnabled:                             true,
+		AuthIssuer:                              "https://issuer.example.com",
+		AuthAudience:                            "api",
+		AuthTokenType:                           "opaque",
+		AuthIntrospectionURL:                    "https://issuer.example.com/oauth2/introspect",
+		AuthIntrospectionAuthMethod:             "private_key_jwt",
+		AuthIntrospectionPrivateKey:             "PEM",
+		AuthIntrospectionPrivateKeyJWTAlgorithm: "es256",
+	}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("expected valid opaque private_key_jwt config, got error: %v", err)
+	}
+	if cfg.AuthIntrospectionPrivateKeyJWTAlgorithm != "ES256" {
+		t.Fatalf("expected algorithm to normalize to ES256, got %s", cfg.AuthIntrospectionPrivateKeyJWTAlgorithm)
+	}
+}
+
 func TestLoadDefaults(t *testing.T) {
 	// Clear any environment variables
 	for _, key := range []string{
 		"GRPC_PORT", "METRICS_PORT", "LOG_LEVEL",
 		"AUTH_ENABLED", "AUTH_ISSUER", "AUTH_AUDIENCE", "AUTH_JWKS_URL", "AUTH_TOKEN_TYPE",
-		"AUTH_INTROSPECTION_URL", "AUTH_INTROSPECTION_CLIENT_ID", "AUTH_INTROSPECTION_CLIENT_SECRET",
+		"AUTH_INTROSPECTION_URL", "AUTH_INTROSPECTION_AUTH_METHOD", "AUTH_INTROSPECTION_CLIENT_ID", "AUTH_INTROSPECTION_CLIENT_SECRET",
+		"AUTH_INTROSPECTION_PRIVATE_KEY", "AUTH_INTROSPECTION_PRIVATE_KEY_FILE",
+		"AUTH_INTROSPECTION_PRIVATE_KEY_JWT_KID", "AUTH_INTROSPECTION_PRIVATE_KEY_JWT_ALG",
 		"TLS_ENABLED", "TLS_CERT_FILE", "TLS_KEY_FILE", "TLS_CA_FILE", "TLS_CLIENT_AUTH", "TLS_MIN_VERSION",
 	} {
 		t.Setenv(key, "")
@@ -172,11 +292,14 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.AuthEnabled {
 		t.Errorf("expected AuthEnabled to be false by default")
 	}
-	if cfg.AuthIssuer != "" || cfg.AuthAudience != "" || cfg.AuthJWKSURL != "" || cfg.AuthIntrospectionURL != "" || cfg.AuthIntrospectionClientID != "" || cfg.AuthIntrospectionClientSecret != "" {
+	if cfg.AuthIssuer != "" || cfg.AuthAudience != "" || cfg.AuthJWKSURL != "" || cfg.AuthIntrospectionURL != "" || cfg.AuthIntrospectionClientID != "" || cfg.AuthIntrospectionClientSecret != "" || cfg.AuthIntrospectionPrivateKey != "" || cfg.AuthIntrospectionPrivateKeyFile != "" || cfg.AuthIntrospectionPrivateKeyJWTKeyID != "" || cfg.AuthIntrospectionPrivateKeyJWTAlgorithm != "" {
 		t.Errorf("expected auth config defaults to be empty, got %+v", cfg)
 	}
 	if cfg.AuthTokenType != "jwt" {
 		t.Errorf("expected AuthTokenType to default to 'jwt', got %s", cfg.AuthTokenType)
+	}
+	if cfg.AuthIntrospectionAuthMethod != "client_secret_basic" {
+		t.Errorf("expected AuthIntrospectionAuthMethod to default to 'client_secret_basic', got %s", cfg.AuthIntrospectionAuthMethod)
 	}
 	if cfg.TLSEnabled {
 		t.Errorf("expected TLSEnabled to be false by default")

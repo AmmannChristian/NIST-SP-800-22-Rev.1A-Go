@@ -2,6 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"log"
 	"net"
@@ -94,6 +99,60 @@ func TestBuildUnaryInterceptorsWithOpaqueAuth(t *testing.T) {
 	}
 	if len(interceptors) != 3 {
 		t.Fatalf("expected 3 interceptors with opaque auth, got %d", len(interceptors))
+	}
+}
+
+func TestBuildUnaryInterceptorsWithOpaqueAuthPrivateKeyJWTPEM(t *testing.T) {
+	cfg := &config.Config{
+		AuthEnabled:                             true,
+		AuthIssuer:                              "https://issuer.example.com",
+		AuthAudience:                            "nist-api",
+		AuthTokenType:                           "opaque",
+		AuthIntrospectionURL:                    "https://issuer.example.com/oauth2/introspect",
+		AuthIntrospectionAuthMethod:             "private_key_jwt",
+		AuthIntrospectionClientID:               "svc-client",
+		AuthIntrospectionPrivateKey:             mustGenerateRSAPrivateKeyPEM(t),
+		AuthIntrospectionPrivateKeyJWTKeyID:     "kid-1",
+		AuthIntrospectionPrivateKeyJWTAlgorithm: "RS256",
+	}
+
+	interceptors, err := buildUnaryInterceptors(cfg)
+	if err != nil {
+		t.Fatalf("buildUnaryInterceptors() returned error: %v", err)
+	}
+	if len(interceptors) != 3 {
+		t.Fatalf("expected 3 interceptors with private_key_jwt auth, got %d", len(interceptors))
+	}
+}
+
+func TestBuildUnaryInterceptorsWithOpaqueAuthPrivateKeyJWTZitadelJSON(t *testing.T) {
+	privateKeyPEM := mustGenerateRSAPrivateKeyPEM(t)
+	zitadelEnvelope := map[string]string{
+		"keyId":    "zitadel-kid",
+		"clientId": "svc-client",
+		"key":      privateKeyPEM,
+	}
+	zitadelKeyJSONBytes, err := json.Marshal(zitadelEnvelope)
+	if err != nil {
+		t.Fatalf("failed to marshal zitadel key envelope: %v", err)
+	}
+
+	cfg := &config.Config{
+		AuthEnabled:                 true,
+		AuthIssuer:                  "https://issuer.example.com",
+		AuthAudience:                "nist-api",
+		AuthTokenType:               "opaque",
+		AuthIntrospectionURL:        "https://issuer.example.com/oauth2/introspect",
+		AuthIntrospectionAuthMethod: "private_key_jwt",
+		AuthIntrospectionPrivateKey: string(zitadelKeyJSONBytes),
+	}
+
+	interceptors, buildErr := buildUnaryInterceptors(cfg)
+	if buildErr != nil {
+		t.Fatalf("buildUnaryInterceptors() returned error: %v", buildErr)
+	}
+	if len(interceptors) != 3 {
+		t.Fatalf("expected 3 interceptors with private_key_jwt json key, got %d", len(interceptors))
 	}
 }
 
@@ -286,4 +345,25 @@ func mustListen(t *testing.T) net.Listener {
 		t.Skipf("cannot listen on tcp :0 in test environment: %v", err)
 	}
 	return ln
+}
+
+func mustGenerateRSAPrivateKeyPEM(t *testing.T) string {
+	t.Helper()
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate rsa private key: %v", err)
+	}
+
+	privateKeyDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		t.Fatalf("failed to marshal private key: %v", err)
+	}
+
+	privateKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: privateKeyDER,
+	})
+
+	return string(privateKeyPEM)
 }

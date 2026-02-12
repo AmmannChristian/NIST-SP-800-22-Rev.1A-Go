@@ -122,12 +122,37 @@ Environment-based configuration:
 - `AUTH_TOKEN_TYPE` - Token mode: `jwt` (default) or `opaque`
 - `AUTH_JWKS_URL` - Optional custom JWKS endpoint (JWT mode; defaults to issuer well-known URL)
 - `AUTH_INTROSPECTION_URL` - OAuth2 introspection endpoint (required in opaque mode)
-- `AUTH_INTROSPECTION_CLIENT_ID` / `AUTH_INTROSPECTION_CLIENT_SECRET` - Introspection client credentials (required in opaque mode)
+- `AUTH_INTROSPECTION_AUTH_METHOD` - Introspection client auth (`client_secret_basic` default or `private_key_jwt`)
+- `AUTH_INTROSPECTION_CLIENT_ID` / `AUTH_INTROSPECTION_CLIENT_SECRET` - Introspection client credentials (required for `client_secret_basic`)
+- `AUTH_INTROSPECTION_PRIVATE_KEY` - Private key content for `private_key_jwt` (PEM, JWK JSON, or Zitadel key JSON)
+- `AUTH_INTROSPECTION_PRIVATE_KEY_FILE` - Alternative file path for `AUTH_INTROSPECTION_PRIVATE_KEY` (mutually exclusive)
+- `AUTH_INTROSPECTION_PRIVATE_KEY_JWT_KID` - Optional JWT header `kid` override for `private_key_jwt`
+- `AUTH_INTROSPECTION_PRIVATE_KEY_JWT_ALG` - Optional signing alg override (`RS256` or `ES256`)
 - `TLS_ENABLED` - Enable TLS for the gRPC server (default: false)
 - `TLS_CERT_FILE` / `TLS_KEY_FILE` - Server certificate and key (required when TLS is enabled)
 - `TLS_CA_FILE` - Optional CA bundle for client cert verification (mTLS)
 - `TLS_CLIENT_AUTH` - Client auth mode (`none`, `request`, `requireany`, `verifyifgiven`, `requireandverify`; default: `none`)
 - `TLS_MIN_VERSION` - Minimum TLS version (`1.2` or `1.3`; default: `1.2`)
+
+ZITADEL `private_key_jwt` examples:
+
+```bash
+# PEM (inline or from file)
+AUTH_TOKEN_TYPE=opaque
+AUTH_INTROSPECTION_URL=https://<zitadel-domain>/oauth/v2/introspect
+AUTH_INTROSPECTION_AUTH_METHOD=private_key_jwt
+AUTH_INTROSPECTION_CLIENT_ID=<client-id>
+AUTH_INTROSPECTION_PRIVATE_KEY_FILE=/run/secrets/zitadel-private-key.pem
+AUTH_INTROSPECTION_PRIVATE_KEY_JWT_ALG=RS256
+```
+
+```bash
+# Zitadel key JSON envelope (contains keyId/key/clientId)
+AUTH_TOKEN_TYPE=opaque
+AUTH_INTROSPECTION_URL=https://<zitadel-domain>/oauth/v2/introspect
+AUTH_INTROSPECTION_AUTH_METHOD=private_key_jwt
+AUTH_INTROSPECTION_PRIVATE_KEY='{"keyId":"...","key":"-----BEGIN PRIVATE KEY-----\n...","clientId":"..."}'
+```
 
 ### Extending the Service
 

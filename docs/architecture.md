@@ -354,8 +354,13 @@ All service configuration is loaded from environment variables by the `config.Lo
 | `AUTH_TOKEN_TYPE` | string | `jwt` | Token validation mode (`jwt` or `opaque`) |
 | `AUTH_JWKS_URL` | string | (empty) | Custom JWKS endpoint URL (JWT mode; defaults to issuer well-known URL) |
 | `AUTH_INTROSPECTION_URL` | string | (empty) | OAuth2 introspection endpoint URL (opaque mode) |
-| `AUTH_INTROSPECTION_CLIENT_ID` | string | (empty) | Introspection client ID (opaque mode) |
-| `AUTH_INTROSPECTION_CLIENT_SECRET` | string | (empty) | Introspection client secret (opaque mode) |
+| `AUTH_INTROSPECTION_AUTH_METHOD` | string | `client_secret_basic` | Introspection client auth method (`client_secret_basic` or `private_key_jwt`) |
+| `AUTH_INTROSPECTION_CLIENT_ID` | string | (empty) | Introspection client ID (`client_secret_basic`; optional for Zitadel key JSON with `private_key_jwt`) |
+| `AUTH_INTROSPECTION_CLIENT_SECRET` | string | (empty) | Introspection client secret (`client_secret_basic`) |
+| `AUTH_INTROSPECTION_PRIVATE_KEY` | string | (empty) | Introspection private key content for `private_key_jwt` (PEM, JWK JSON, or Zitadel key JSON) |
+| `AUTH_INTROSPECTION_PRIVATE_KEY_FILE` | string | (empty) | File path alternative for `AUTH_INTROSPECTION_PRIVATE_KEY` |
+| `AUTH_INTROSPECTION_PRIVATE_KEY_JWT_KID` | string | (empty) | Optional `kid` override for `private_key_jwt` assertions |
+| `AUTH_INTROSPECTION_PRIVATE_KEY_JWT_ALG` | string | (empty) | Optional assertion signing algorithm (`RS256` or `ES256`) |
 | `TLS_ENABLED` | boolean | `false` | Enable TLS for the gRPC server |
 | `TLS_CERT_FILE` | string | (empty) | Path to the server TLS certificate (required when TLS is enabled) |
 | `TLS_KEY_FILE` | string | (empty) | Path to the server TLS private key (required when TLS is enabled) |
@@ -371,7 +376,10 @@ Configuration validation is performed at startup and enforces the following cons
 - Log level must be one of the four accepted values.
 - When `AUTH_ENABLED=true`, both `AUTH_ISSUER` and `AUTH_AUDIENCE` must be non-empty.
 - `AUTH_TOKEN_TYPE` must be either `jwt` or `opaque`.
-- When `AUTH_TOKEN_TYPE=opaque`, `AUTH_INTROSPECTION_URL`, `AUTH_INTROSPECTION_CLIENT_ID`, and `AUTH_INTROSPECTION_CLIENT_SECRET` must be non-empty.
+- When `AUTH_TOKEN_TYPE=opaque`, `AUTH_INTROSPECTION_URL` must be non-empty.
+- `AUTH_INTROSPECTION_AUTH_METHOD` must be either `client_secret_basic` or `private_key_jwt`.
+- With `AUTH_INTROSPECTION_AUTH_METHOD=client_secret_basic`, both `AUTH_INTROSPECTION_CLIENT_ID` and `AUTH_INTROSPECTION_CLIENT_SECRET` must be non-empty.
+- With `AUTH_INTROSPECTION_AUTH_METHOD=private_key_jwt`, `AUTH_INTROSPECTION_PRIVATE_KEY` or `AUTH_INTROSPECTION_PRIVATE_KEY_FILE` is required (mutually exclusive), file content must be non-empty, and `AUTH_INTROSPECTION_PRIVATE_KEY_JWT_ALG` must be `RS256` or `ES256` if provided.
 - When `TLS_ENABLED=true`, both `TLS_CERT_FILE` and `TLS_KEY_FILE` must be specified, and `TLS_CLIENT_AUTH` and `TLS_MIN_VERSION` must parse to valid values.
 
 If any validation rule is violated, the service terminates with a descriptive error message.
@@ -380,7 +388,7 @@ If any validation rule is violated, the service terminates with a descriptive er
 
 ### 9.1 Authentication
 
-The service supports OAuth2/OIDC bearer token validation through the `go-authx` library (`github.com/AmmannChristian/go-authx`). When enabled, every gRPC request must include a valid bearer token in the request metadata. In JWT mode, the validator verifies the token signature against JWKS and checks issuer and audience claims. In opaque mode, it performs RFC 7662 introspection against the configured introspection endpoint using client credentials.
+The service supports OAuth2/OIDC bearer token validation through the `go-authx` library (`github.com/AmmannChristian/go-authx`). When enabled, every gRPC request must include a valid bearer token in the request metadata. In JWT mode, the validator verifies the token signature against JWKS and checks issuer and audience claims. In opaque mode, it performs RFC 7662 introspection against the configured introspection endpoint. Introspection client authentication supports both `client_secret_basic` and RFC 7523 `private_key_jwt` (PEM/JWK/Zitadel key JSON).
 
 Health check endpoints (`/grpc.health.v1.Health/Check` and `/grpc.health.v1.Health/Watch`) are explicitly exempted from authentication to allow infrastructure health monitoring without credentials.
 
