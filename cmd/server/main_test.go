@@ -67,6 +67,36 @@ func TestLoggingInterceptor(t *testing.T) {
 	}
 }
 
+func TestBuildUnaryInterceptorsWithoutAuth(t *testing.T) {
+	interceptors, err := buildUnaryInterceptors(&config.Config{AuthEnabled: false})
+	if err != nil {
+		t.Fatalf("buildUnaryInterceptors() returned error: %v", err)
+	}
+	if len(interceptors) != 2 {
+		t.Fatalf("expected 2 interceptors without auth, got %d", len(interceptors))
+	}
+}
+
+func TestBuildUnaryInterceptorsWithOpaqueAuth(t *testing.T) {
+	cfg := &config.Config{
+		AuthEnabled:                   true,
+		AuthIssuer:                    "https://issuer.example.com",
+		AuthAudience:                  "nist-api",
+		AuthTokenType:                 "opaque",
+		AuthIntrospectionURL:          "https://issuer.example.com/oauth2/introspect",
+		AuthIntrospectionClientID:     "svc-client",
+		AuthIntrospectionClientSecret: "svc-secret",
+	}
+
+	interceptors, err := buildUnaryInterceptors(cfg)
+	if err != nil {
+		t.Fatalf("buildUnaryInterceptors() returned error: %v", err)
+	}
+	if len(interceptors) != 3 {
+		t.Fatalf("expected 3 interceptors with opaque auth, got %d", len(interceptors))
+	}
+}
+
 func TestStartMetricsServer(t *testing.T) {
 	ln := mustListen(t)
 	// No defer ln.Close() here, server will close it

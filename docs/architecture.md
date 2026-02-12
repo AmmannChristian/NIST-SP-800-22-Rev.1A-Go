@@ -294,7 +294,7 @@ sequenceDiagram
     MW-->>INT: ctx with request_id
     MW-->>C: x-request-id header (metadata)
     INT->>LOG: Log request start
-    INT->>AUTH: Validate JWT (if enabled)
+    INT->>AUTH: Validate token (JWT or opaque, if enabled)
     AUTH-->>INT: Authorized
     INT->>SVC: RunTestSuite(ctx, req)
     SVC->>SVC: validateRequest(req)
@@ -322,7 +322,7 @@ The gRPC server employs a chain of unary interceptors applied to every incoming 
 
 2. **Logging Interceptor** (`loggingInterceptor`): Records the method name, request ID, wall-clock duration, and outcome (success or error) of every request using structured zerolog output.
 
-3. **Authentication Interceptor** (conditional): When `AUTH_ENABLED=true`, an OIDC JWT validation interceptor from the `go-authx` library is appended. It validates bearer tokens against the configured issuer, audience, and JWKS endpoint. Health check endpoints are explicitly exempted from authentication.
+3. **Authentication Interceptor** (conditional): When `AUTH_ENABLED=true`, an OAuth2/OIDC token validation interceptor from the `go-authx` library is appended. In `AUTH_TOKEN_TYPE=jwt` mode it validates bearer tokens against the configured issuer, audience, and JWKS endpoint. In `AUTH_TOKEN_TYPE=opaque` mode it validates opaque bearer tokens via RFC 7662 introspection (`AUTH_INTROSPECTION_URL` plus introspection client credentials). Health check endpoints are explicitly exempted from authentication.
 
 ### 7.2 Request Validation
 
@@ -348,10 +348,14 @@ All service configuration is loaded from environment variables by the `config.Lo
 | `GRPC_PORT` | integer | 9090 | TCP port for the gRPC server |
 | `METRICS_PORT` | integer | 9091 | TCP port for the HTTP metrics, health, and pprof server |
 | `LOG_LEVEL` | string | `info` | Logging verbosity: `debug`, `info`, `warn`, or `error` |
-| `AUTH_ENABLED` | boolean | `false` | Enable OIDC JWT validation for gRPC calls |
-| `AUTH_ISSUER` | string | (empty) | Expected JWT issuer claim (required when auth is enabled) |
-| `AUTH_AUDIENCE` | string | (empty) | Expected JWT audience claim (required when auth is enabled) |
-| `AUTH_JWKS_URL` | string | (empty) | Custom JWKS endpoint URL (defaults to issuer well-known URL) |
+| `AUTH_ENABLED` | boolean | `false` | Enable OAuth2/OIDC token validation for gRPC calls |
+| `AUTH_ISSUER` | string | (empty) | Expected token issuer claim (required when auth is enabled) |
+| `AUTH_AUDIENCE` | string | (empty) | Expected token audience claim (required when auth is enabled) |
+| `AUTH_TOKEN_TYPE` | string | `jwt` | Token validation mode (`jwt` or `opaque`) |
+| `AUTH_JWKS_URL` | string | (empty) | Custom JWKS endpoint URL (JWT mode; defaults to issuer well-known URL) |
+| `AUTH_INTROSPECTION_URL` | string | (empty) | OAuth2 introspection endpoint URL (opaque mode) |
+| `AUTH_INTROSPECTION_CLIENT_ID` | string | (empty) | Introspection client ID (opaque mode) |
+| `AUTH_INTROSPECTION_CLIENT_SECRET` | string | (empty) | Introspection client secret (opaque mode) |
 | `TLS_ENABLED` | boolean | `false` | Enable TLS for the gRPC server |
 | `TLS_CERT_FILE` | string | (empty) | Path to the server TLS certificate (required when TLS is enabled) |
 | `TLS_KEY_FILE` | string | (empty) | Path to the server TLS private key (required when TLS is enabled) |
@@ -366,6 +370,8 @@ Configuration validation is performed at startup and enforces the following cons
 - Port numbers must be in the range 1 through 65535.
 - Log level must be one of the four accepted values.
 - When `AUTH_ENABLED=true`, both `AUTH_ISSUER` and `AUTH_AUDIENCE` must be non-empty.
+- `AUTH_TOKEN_TYPE` must be either `jwt` or `opaque`.
+- When `AUTH_TOKEN_TYPE=opaque`, `AUTH_INTROSPECTION_URL`, `AUTH_INTROSPECTION_CLIENT_ID`, and `AUTH_INTROSPECTION_CLIENT_SECRET` must be non-empty.
 - When `TLS_ENABLED=true`, both `TLS_CERT_FILE` and `TLS_KEY_FILE` must be specified, and `TLS_CLIENT_AUTH` and `TLS_MIN_VERSION` must parse to valid values.
 
 If any validation rule is violated, the service terminates with a descriptive error message.
@@ -374,7 +380,7 @@ If any validation rule is violated, the service terminates with a descriptive er
 
 ### 9.1 Authentication
 
-The service supports OIDC-based JWT authentication through the `go-authx` library (`github.com/AmmannChristian/go-authx`). When enabled, every gRPC request must include a valid bearer token in the request metadata. The validator verifies the token signature against the JWKS endpoint, and checks the issuer and audience claims against configured values.
+The service supports OAuth2/OIDC bearer token validation through the `go-authx` library (`github.com/AmmannChristian/go-authx`). When enabled, every gRPC request must include a valid bearer token in the request metadata. In JWT mode, the validator verifies the token signature against JWKS and checks issuer and audience claims. In opaque mode, it performs RFC 7662 introspection against the configured introspection endpoint using client credentials.
 
 Health check endpoints (`/grpc.health.v1.Health/Check` and `/grpc.health.v1.Health/Watch`) are explicitly exempted from authentication to allow infrastructure health monitoring without credentials.
 

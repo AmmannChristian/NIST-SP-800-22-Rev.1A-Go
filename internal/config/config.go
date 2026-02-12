@@ -32,10 +32,14 @@ type Config struct {
 	LogLevel string
 
 	// Authentication configuration
-	AuthEnabled  bool
-	AuthIssuer   string
-	AuthAudience string
-	AuthJWKSURL  string
+	AuthEnabled                   bool
+	AuthIssuer                    string
+	AuthAudience                  string
+	AuthJWKSURL                   string
+	AuthTokenType                 string
+	AuthIntrospectionURL          string
+	AuthIntrospectionClientID     string
+	AuthIntrospectionClientSecret string
 }
 
 // Load reads configuration from environment variables with sensible defaults
@@ -43,19 +47,23 @@ type Config struct {
 // missing or out of range.
 func Load() (*Config, error) {
 	cfg := &Config{
-		GRPCPort:      getEnvInt("GRPC_PORT", 9090),
-		TLSEnabled:    getEnvBool("TLS_ENABLED", false),
-		TLSCertFile:   getEnvString("TLS_CERT_FILE", ""),
-		TLSKeyFile:    getEnvString("TLS_KEY_FILE", ""),
-		TLSCAFile:     getEnvString("TLS_CA_FILE", ""),
-		TLSClientAuth: getEnvString("TLS_CLIENT_AUTH", "none"),
-		TLSMinVersion: getEnvString("TLS_MIN_VERSION", "1.2"),
-		MetricsPort:   getEnvInt("METRICS_PORT", 9091),
-		LogLevel:      getEnvString("LOG_LEVEL", "info"),
-		AuthEnabled:   getEnvBool("AUTH_ENABLED", false),
-		AuthIssuer:    getEnvString("AUTH_ISSUER", ""),
-		AuthAudience:  getEnvString("AUTH_AUDIENCE", ""),
-		AuthJWKSURL:   getEnvString("AUTH_JWKS_URL", ""),
+		GRPCPort:                      getEnvInt("GRPC_PORT", 9090),
+		TLSEnabled:                    getEnvBool("TLS_ENABLED", false),
+		TLSCertFile:                   getEnvString("TLS_CERT_FILE", ""),
+		TLSKeyFile:                    getEnvString("TLS_KEY_FILE", ""),
+		TLSCAFile:                     getEnvString("TLS_CA_FILE", ""),
+		TLSClientAuth:                 getEnvString("TLS_CLIENT_AUTH", "none"),
+		TLSMinVersion:                 getEnvString("TLS_MIN_VERSION", "1.2"),
+		MetricsPort:                   getEnvInt("METRICS_PORT", 9091),
+		LogLevel:                      getEnvString("LOG_LEVEL", "info"),
+		AuthEnabled:                   getEnvBool("AUTH_ENABLED", false),
+		AuthIssuer:                    getEnvString("AUTH_ISSUER", ""),
+		AuthAudience:                  getEnvString("AUTH_AUDIENCE", ""),
+		AuthJWKSURL:                   getEnvString("AUTH_JWKS_URL", ""),
+		AuthTokenType:                 getEnvString("AUTH_TOKEN_TYPE", "jwt"),
+		AuthIntrospectionURL:          getEnvString("AUTH_INTROSPECTION_URL", ""),
+		AuthIntrospectionClientID:     getEnvString("AUTH_INTROSPECTION_CLIENT_ID", ""),
+		AuthIntrospectionClientSecret: getEnvString("AUTH_INTROSPECTION_CLIENT_SECRET", ""),
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -94,6 +102,23 @@ func (c *Config) Validate() error {
 		}
 		if c.AuthAudience == "" {
 			return fmt.Errorf("invalid AUTH_AUDIENCE: required when AUTH_ENABLED=true")
+		}
+		tokenType, err := parseAuthTokenType(c.AuthTokenType)
+		if err != nil {
+			return err
+		}
+		c.AuthTokenType = tokenType
+
+		if c.AuthTokenType == "opaque" {
+			if c.AuthIntrospectionURL == "" {
+				return fmt.Errorf("invalid AUTH_INTROSPECTION_URL: required when AUTH_TOKEN_TYPE=opaque")
+			}
+			if c.AuthIntrospectionClientID == "" {
+				return fmt.Errorf("invalid AUTH_INTROSPECTION_CLIENT_ID: required when AUTH_TOKEN_TYPE=opaque")
+			}
+			if c.AuthIntrospectionClientSecret == "" {
+				return fmt.Errorf("invalid AUTH_INTROSPECTION_CLIENT_SECRET: required when AUTH_TOKEN_TYPE=opaque")
+			}
 		}
 	}
 
@@ -156,6 +181,17 @@ func parseTLSMinVersion(version string) (uint16, error) {
 		return tls.VersionTLS13, nil
 	default:
 		return 0, fmt.Errorf("invalid TLS_MIN_VERSION: %s (use 1.2 or 1.3)", version)
+	}
+}
+
+func parseAuthTokenType(tokenType string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(tokenType)) {
+	case "", "jwt":
+		return "jwt", nil
+	case "opaque":
+		return "opaque", nil
+	default:
+		return "", fmt.Errorf("invalid AUTH_TOKEN_TYPE: %s (use jwt or opaque)", tokenType)
 	}
 }
 
