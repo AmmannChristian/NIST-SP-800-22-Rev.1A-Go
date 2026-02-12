@@ -12,8 +12,11 @@ services:
       - AUTH_ENABLED=${AUTH_ENABLED:-false}
       - AUTH_ISSUER=${AUTH_ISSUER:-}
       - AUTH_AUDIENCE=${AUTH_AUDIENCE:-}
+      # Token validation mode: jwt | opaque
       - AUTH_TOKEN_TYPE=${AUTH_TOKEN_TYPE:-jwt}
+      # JWT mode
       - AUTH_JWKS_URL=${AUTH_JWKS_URL:-}
+      # Opaque mode (RFC 7662 introspection)
       - AUTH_INTROSPECTION_URL=${AUTH_INTROSPECTION_URL:-}
       - AUTH_INTROSPECTION_CLIENT_ID=${AUTH_INTROSPECTION_CLIENT_ID:-}
       - AUTH_INTROSPECTION_CLIENT_SECRET=${AUTH_INTROSPECTION_CLIENT_SECRET:-}
