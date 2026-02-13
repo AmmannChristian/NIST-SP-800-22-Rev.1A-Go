@@ -36,7 +36,7 @@ func RunAllTests(bitstream []byte) ([]TestResult, error) {
 		return nil, fmt.Errorf("insufficient bits: got %d, need at least %d", numBits, MinBits)
 	}
 	if numBits > MaxBits {
-		return nil, fmt.Errorf("too many bits: got %d, maximum %d", numBits, MaxBits)
+		return nil, fmt.Errorf("too many bits wass: got %d, maximum %d", numBits, MaxBits)
 	}
 
 	results := make([]TestResult, 0, 15)

@@ -11,11 +11,15 @@ import (
 	"strings"
 )
 
+const defaultGRPCMaxMessageSize = 10 * 1024 * 1024
+
 // Config holds all service configuration loaded from environment variables.
 // Fields map one-to-one to environment variables (e.g. GRPCPort from GRPC_PORT).
 type Config struct {
 	// gRPC server configuration
-	GRPCPort int
+	GRPCPort               int
+	GRPCMaxRecvMessageSize int
+	GRPCMaxSendMessageSize int
 
 	// TLS configuration for gRPC
 	TLSEnabled    bool
@@ -59,6 +63,8 @@ type Config struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		GRPCPort:                                getEnvInt("GRPC_PORT", 9090),
+		GRPCMaxRecvMessageSize:                  getEnvInt("GRPC_MAX_RECV_MESSAGE_SIZE", defaultGRPCMaxMessageSize),
+		GRPCMaxSendMessageSize:                  getEnvInt("GRPC_MAX_SEND_MESSAGE_SIZE", defaultGRPCMaxMessageSize),
 		TLSEnabled:                              getEnvBool("TLS_ENABLED", false),
 		TLSCertFile:                             getEnvString("TLS_CERT_FILE", ""),
 		TLSKeyFile:                              getEnvString("TLS_KEY_FILE", ""),
@@ -101,6 +107,18 @@ func Load() (*Config, error) {
 func (c *Config) Validate() error {
 	if c.GRPCPort < 1 || c.GRPCPort > 65535 {
 		return fmt.Errorf("invalid GRPC_PORT: %d (must be 1-65535)", c.GRPCPort)
+	}
+	if c.GRPCMaxRecvMessageSize < 0 {
+		return fmt.Errorf("invalid GRPC_MAX_RECV_MESSAGE_SIZE: %d (must be >= 0)", c.GRPCMaxRecvMessageSize)
+	}
+	if c.GRPCMaxSendMessageSize < 0 {
+		return fmt.Errorf("invalid GRPC_MAX_SEND_MESSAGE_SIZE: %d (must be >= 0)", c.GRPCMaxSendMessageSize)
+	}
+	if c.GRPCMaxRecvMessageSize == 0 {
+		c.GRPCMaxRecvMessageSize = defaultGRPCMaxMessageSize
+	}
+	if c.GRPCMaxSendMessageSize == 0 {
+		c.GRPCMaxSendMessageSize = defaultGRPCMaxMessageSize
 	}
 
 	if c.MetricsPort < 1 || c.MetricsPort > 65535 {

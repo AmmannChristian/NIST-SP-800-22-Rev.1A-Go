@@ -53,6 +53,8 @@ func run(ctx context.Context) error {
 	log.Info().
 		Int("grpc_port", cfg.GRPCPort).
 		Int("metrics_port", cfg.MetricsPort).
+		Int("grpc_max_recv_message_size", cfg.GRPCMaxRecvMessageSize).
+		Int("grpc_max_send_message_size", cfg.GRPCMaxSendMessageSize).
 		Str("log_level", cfg.LogLevel).
 		Bool("auth_enabled", cfg.AuthEnabled).
 		Msg("Starting NIST Statistical Test Service")
@@ -304,8 +306,19 @@ func authorizationEnabled(cfg *config.Config) bool {
 // is enabled, it constructs TLS credentials from the configured certificate, key,
 // optional CA file, client authentication mode, and minimum TLS version.
 func buildGRPCServerOptions(cfg *config.Config, unaryInterceptors []grpc.UnaryServerInterceptor) ([]grpc.ServerOption, error) {
+	maxRecvMessageSize := cfg.GRPCMaxRecvMessageSize
+	if maxRecvMessageSize <= 0 {
+		maxRecvMessageSize = 10 * 1024 * 1024
+	}
+	maxSendMessageSize := cfg.GRPCMaxSendMessageSize
+	if maxSendMessageSize <= 0 {
+		maxSendMessageSize = 10 * 1024 * 1024
+	}
+
 	opts := []grpc.ServerOption{
 		grpc.ChainUnaryInterceptor(unaryInterceptors...),
+		grpc.MaxRecvMsgSize(maxRecvMessageSize),
+		grpc.MaxSendMsgSize(maxSendMessageSize),
 	}
 
 	if !cfg.TLSEnabled {

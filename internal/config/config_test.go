@@ -7,6 +7,8 @@ import (
 
 func TestLoadWithEnvOverrides(t *testing.T) {
 	t.Setenv("GRPC_PORT", "5000")
+	t.Setenv("GRPC_MAX_RECV_MESSAGE_SIZE", "12582912")
+	t.Setenv("GRPC_MAX_SEND_MESSAGE_SIZE", "12582912")
 	t.Setenv("METRICS_PORT", "6000")
 	t.Setenv("LOG_LEVEL", "debug")
 	t.Setenv("AUTH_ENABLED", "true")
@@ -34,6 +36,12 @@ func TestLoadWithEnvOverrides(t *testing.T) {
 
 	if cfg.GRPCPort != 5000 || cfg.MetricsPort != 6000 {
 		t.Fatalf("unexpected ports: %+v", cfg)
+	}
+	if cfg.GRPCMaxRecvMessageSize != 12582912 {
+		t.Fatalf("unexpected GRPCMaxRecvMessageSize: %d", cfg.GRPCMaxRecvMessageSize)
+	}
+	if cfg.GRPCMaxSendMessageSize != 12582912 {
+		t.Fatalf("unexpected GRPCMaxSendMessageSize: %d", cfg.GRPCMaxSendMessageSize)
 	}
 	if cfg.LogLevel != "debug" {
 		t.Fatalf("unexpected log level: %s", cfg.LogLevel)
@@ -208,6 +216,8 @@ func TestValidateFailures(t *testing.T) {
 		cfg  Config
 	}{
 		{"bad grpc port", Config{GRPCPort: 0, MetricsPort: 9000, LogLevel: "info"}},
+		{"bad grpc max recv size", Config{GRPCPort: 9000, GRPCMaxRecvMessageSize: -1, MetricsPort: 9000, LogLevel: "info"}},
+		{"bad grpc max send size", Config{GRPCPort: 9000, GRPCMaxSendMessageSize: -1, MetricsPort: 9000, LogLevel: "info"}},
 		{"bad metrics port", Config{GRPCPort: 9000, MetricsPort: 70000, LogLevel: "info"}},
 		{"bad log level", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "verbose"}},
 		{"auth enabled missing issuer", Config{GRPCPort: 9000, MetricsPort: 9001, LogLevel: "info", AuthEnabled: true, AuthAudience: "api"}},
@@ -290,7 +300,7 @@ func TestValidateOpaquePrivateKeyJWTAuthSuccess(t *testing.T) {
 func TestLoadDefaults(t *testing.T) {
 	// Clear any environment variables
 	for _, key := range []string{
-		"GRPC_PORT", "METRICS_PORT", "LOG_LEVEL",
+		"GRPC_PORT", "GRPC_MAX_RECV_MESSAGE_SIZE", "GRPC_MAX_SEND_MESSAGE_SIZE", "METRICS_PORT", "LOG_LEVEL",
 		"AUTH_ENABLED", "AUTH_ISSUER", "AUTH_AUDIENCE", "AUTH_JWKS_URL", "AUTH_TOKEN_TYPE",
 		"AUTH_INTROSPECTION_URL", "AUTH_INTROSPECTION_AUTH_METHOD", "AUTH_INTROSPECTION_CLIENT_ID", "AUTH_INTROSPECTION_CLIENT_SECRET",
 		"AUTH_INTROSPECTION_PRIVATE_KEY", "AUTH_INTROSPECTION_PRIVATE_KEY_FILE",
@@ -310,6 +320,12 @@ func TestLoadDefaults(t *testing.T) {
 	// Check default values
 	if cfg.GRPCPort != 9090 {
 		t.Errorf("expected default GRPCPort=9090, got %d", cfg.GRPCPort)
+	}
+	if cfg.GRPCMaxRecvMessageSize != 10*1024*1024 {
+		t.Errorf("expected default GRPCMaxRecvMessageSize=10485760, got %d", cfg.GRPCMaxRecvMessageSize)
+	}
+	if cfg.GRPCMaxSendMessageSize != 10*1024*1024 {
+		t.Errorf("expected default GRPCMaxSendMessageSize=10485760, got %d", cfg.GRPCMaxSendMessageSize)
 	}
 	if cfg.MetricsPort != 9091 {
 		t.Errorf("expected default MetricsPort=9091, got %d", cfg.MetricsPort)

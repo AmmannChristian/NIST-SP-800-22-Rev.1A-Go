@@ -3,7 +3,7 @@ module github.com/AmmannChristian/nist-sp800-22-rev1a
 go 1.25.7
 
 require (
-	github.com/AmmannChristian/go-authx v1.2.0
+	github.com/AmmannChristian/go-authx v1.2.2
 	github.com/golangci/golangci-lint v1.64.8
 	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_golang v1.23.2
