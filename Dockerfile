@@ -26,7 +26,7 @@ LABEL maintainer="Christian Ammann" \
 WORKDIR /app
 
 # Minimal runtime deps and non-root user
-RUN apk add --no-cache ca-certificates libc6-compat && \
+RUN apk add --no-cache ca-certificates libc6-compat tzdata && \
     addgroup -g 1000 nist && \
     adduser -D -u 1000 -G nist nist
 
