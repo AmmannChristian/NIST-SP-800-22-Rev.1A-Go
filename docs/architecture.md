@@ -3,7 +3,7 @@
 ## Table of Contents
 
 1. [Overview](#1-overview)
-2. [Role within the High-Entropy-API Platform](#2-role-within-the-high-entropy-api-platform)
+2. [Role within the Decay-entropy-stream Platform](#2-role-within-the-decay-entropy-stream-platform)
 3. [Project Structure](#3-project-structure)
 4. [Component Architecture](#4-component-architecture)
 5. [gRPC Service Interface](#5-grpc-service-interface)
@@ -26,9 +26,9 @@ The implementation is written entirely in Go without any CGO dependencies, enabl
 
 The module name is `github.com/AmmannChristian/nist-sp800-22-rev1a` and requires Go 1.25.5 or later. The project is licensed under the MIT License.
 
-## 2. Role within the High-Entropy-API Platform
+## 2. Role within the Decay-entropy-stream  Platform
 
-Within the broader high-entropy-api system, this service functions as one of two external NIST validation microservices consumed by the `entropy-processor` Quarkus/Java backend. The entropy-processor service communicates with this service over gRPC using a shared Protocol Buffers contract defined in the `nist.sp800_22.v1` package.
+Within the broader decay-entropy-stream system, this service functions as one of two external NIST validation microservices consumed by the `entropy-processor` Quarkus/Java backend. The entropy-processor service communicates with this service over gRPC using a shared Protocol Buffers contract defined in the `nist.sp800_22.v1` package.
 
 The overall data flow is as follows: a hardware random number generator based on Strontium-90 radioactive decay produces entropy events that are collected by the edge gateway (`entropy-tdc-gateway`). After whitening and conditioning, the bitstream data is forwarded to the entropy-processor backend. When NIST SP 800-22 validation is required, the backend serialises the bitstream into a gRPC request and forwards it to this service for statistical analysis. The service returns the complete test results, which the backend persists and exposes through its REST API.
 
