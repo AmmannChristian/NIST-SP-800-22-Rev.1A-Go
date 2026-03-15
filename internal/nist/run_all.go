@@ -23,7 +23,8 @@ const (
 	// MinBits is the minimum required bits for the full 15-test suite (Universal test).
 	MinBits = 387840
 	// MaxBits is a safety cap to avoid unbounded allocations.
-	MaxBits = 10000000
+	// 100M bits = 12.5 MB — supports single-sequence testing for typical 1-hour windows (~30M bits).
+	MaxBits = 100_000_000
 )
 
 // RunAllTests executes all 15 NIST SP 800-22 Rev 1a statistical tests against
@@ -36,7 +37,7 @@ func RunAllTests(bitstream []byte) ([]TestResult, error) {
 		return nil, fmt.Errorf("insufficient bits: got %d, need at least %d", numBits, MinBits)
 	}
 	if numBits > MaxBits {
-		return nil, fmt.Errorf("too many bits wass: got %d, maximum %d", numBits, MaxBits)
+		return nil, fmt.Errorf("too many bits: got %d, maximum %d", numBits, MaxBits)
 	}
 
 	results := make([]TestResult, 0, 15)

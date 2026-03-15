@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const defaultGRPCMaxMessageSize = 10 * 1024 * 1024
+const defaultGRPCMaxMessageSize = 15 * 1024 * 1024
 
 // Config holds all service configuration loaded from environment variables.
 // Fields map one-to-one to environment variables (e.g. GRPCPort from GRPC_PORT).

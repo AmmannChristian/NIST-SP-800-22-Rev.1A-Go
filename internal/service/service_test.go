@@ -71,10 +71,7 @@ func TestValidateRequestEdgeCases(t *testing.T) {
 		t.Error("expected error for empty bitstream")
 	}
 
-	// Max bits exceeded
-	// We can't easily allocate 10MB+ in a test without being slow/memory heavy,
-	// but we can mock or just trust the logic.
-	// Actually, nist.MaxBits is 10,000,000 bits = 1.25MB. That's fine to allocate.
+	// Max bits exceeded (MaxBits = 100M bits = 12.5 MB)
 	huge := &pb.Sp80022TestRequest{Bitstream: make([]byte, nist.MaxBits/8+1)}
 	if err := s.validateRequest(huge); err == nil {
 		t.Error("expected error for exceeding max bits")

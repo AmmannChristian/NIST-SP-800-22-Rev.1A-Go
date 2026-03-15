@@ -321,11 +321,11 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.GRPCPort != 9090 {
 		t.Errorf("expected default GRPCPort=9090, got %d", cfg.GRPCPort)
 	}
-	if cfg.GRPCMaxRecvMessageSize != 10*1024*1024 {
-		t.Errorf("expected default GRPCMaxRecvMessageSize=10485760, got %d", cfg.GRPCMaxRecvMessageSize)
+	if cfg.GRPCMaxRecvMessageSize != 15*1024*1024 {
+		t.Errorf("expected default GRPCMaxRecvMessageSize=15728640, got %d", cfg.GRPCMaxRecvMessageSize)
 	}
-	if cfg.GRPCMaxSendMessageSize != 10*1024*1024 {
-		t.Errorf("expected default GRPCMaxSendMessageSize=10485760, got %d", cfg.GRPCMaxSendMessageSize)
+	if cfg.GRPCMaxSendMessageSize != 15*1024*1024 {
+		t.Errorf("expected default GRPCMaxSendMessageSize=15728640, got %d", cfg.GRPCMaxSendMessageSize)
 	}
 	if cfg.MetricsPort != 9091 {
 		t.Errorf("expected default MetricsPort=9091, got %d", cfg.MetricsPort)
