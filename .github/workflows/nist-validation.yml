@@ -100,15 +100,20 @@ jobs:
       run: |
         set -euo pipefail
         mkdir -p "${GOCACHE}"
+        ARTIFACT_DIR="${GITHUB_WORKSPACE}/validation-artifacts"
+        mkdir -p "${ARTIFACT_DIR}"
         DATASETS=("data.pi" "data.e" "data.sqrt2" "data.sqrt3" "data.sha1" "data.bad_rng")
         STATUS="passed"
-        LOG=/tmp/go_test_output.txt
+        LOG="${ARTIFACT_DIR}/go_test_output.txt"
         : > "${LOG}"
 
         for dataset in "${DATASETS[@]}"; do
           echo "::group::Dataset ${dataset}"
           if ! bash ./tools/run_nist_validation.sh --sts-dir "${GITHUB_WORKSPACE}/sts-2.1.2" --dataset "${dataset}" 2>&1 | tee -a "${LOG}"; then
             STATUS="failed"
+          fi
+          if [ -f /tmp/nist_assess.log ]; then
+            cp /tmp/nist_assess.log "${ARTIFACT_DIR}/nist_assess_${dataset}.log"
           fi
           echo "::endgroup::"
           echo "" >> "${LOG}"
@@ -125,44 +130,50 @@ jobs:
     - name: Generate Validation Report
       if: always()
       run: |
-        echo "# NIST Scientific Validation Results" > $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "## Test Status: ${{ steps.go-tests.outputs.test_status }}" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
+        ARTIFACT_DIR="${GITHUB_WORKSPACE}/validation-artifacts"
+        mkdir -p "${ARTIFACT_DIR}"
+        REPORT="${ARTIFACT_DIR}/validation_report.md"
+
+        echo "# NIST Scientific Validation Results" > "${REPORT}"
+        echo "" >> "${REPORT}"
+        echo "## Test Status: ${{ steps.go-tests.outputs.test_status }}" >> "${REPORT}"
+        echo "" >> "${REPORT}"
         
         if [ "${{ steps.go-tests.outputs.test_status }}" == "passed" ]; then
-          echo "### Validation Successful" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "The Pure Go implementation produces identical P-values to the original NIST C reference implementation." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Datasets Tested:**" >> $GITHUB_STEP_SUMMARY
+          echo "### Validation Successful" >> "${REPORT}"
+          echo "" >> "${REPORT}"
+          echo "The Pure Go implementation produces identical P-values to the original NIST C reference implementation." >> "${REPORT}"
+          echo "" >> "${REPORT}"
+          echo "**Datasets Tested:**" >> "${REPORT}"
           datasets="${{ steps.go-tests.outputs.datasets }}"
           IFS=',' read -ra ds <<< "$datasets"
           for d in "${ds[@]}"; do
-            [ -n "$d" ] && echo "- $d" >> $GITHUB_STEP_SUMMARY
+            [ -n "$d" ] && echo "- $d" >> "${REPORT}"
           done
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**15/15 NIST Tests Validated**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> "${REPORT}"
+          echo "**15/15 NIST Tests Validated**" >> "${REPORT}"
         else
-          echo "### Validation Failed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "One or more tests produced P-values that differ from the NIST reference implementation." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "See test output above for details." >> $GITHUB_STEP_SUMMARY
+          echo "### Validation Failed" >> "${REPORT}"
+          echo "" >> "${REPORT}"
+          echo "One or more tests produced P-values that differ from the NIST reference implementation." >> "${REPORT}"
+          echo "" >> "${REPORT}"
+          echo "See test output above for details." >> "${REPORT}"
         fi
         
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "---" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Test Details" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        if [ -f /tmp/go_test_output.txt ]; then
-          tail -50 /tmp/go_test_output.txt >> $GITHUB_STEP_SUMMARY
+        echo "" >> "${REPORT}"
+        echo "---" >> "${REPORT}"
+        echo "" >> "${REPORT}"
+        echo "### Test Details" >> "${REPORT}"
+        echo "" >> "${REPORT}"
+        echo '```' >> "${REPORT}"
+        if [ -f "${ARTIFACT_DIR}/go_test_output.txt" ]; then
+          tail -50 "${ARTIFACT_DIR}/go_test_output.txt" >> "${REPORT}"
         else
-          echo "No test output available" >> $GITHUB_STEP_SUMMARY
+          echo "No test output available" >> "${REPORT}"
         fi
-        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo '```' >> "${REPORT}"
+
+        cat "${REPORT}" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Upload Test Artifacts
       if: always()
@@ -170,6 +181,7 @@ jobs:
       with:
         name: validation-results
         path: |
-          /tmp/nist_assess.log
+          validation-artifacts/**
           /tmp/nist_results_*.txt
         retention-days: 30
+        if-no-files-found: warn
